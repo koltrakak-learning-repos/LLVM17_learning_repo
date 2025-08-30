@@ -1,4 +1,4 @@
-#include "/home/kevin/LinuxData/LLVM17_learning_repo/SRC/llvm-project-llvmorg-17.0.6/llvm/examples/Kaleidoscope/include/KaleidoscopeJIT.h"
+#include "llvm/examples/Kaleidoscope/include/KaleidoscopeJIT.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
