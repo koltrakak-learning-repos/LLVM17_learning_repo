@@ -1,3 +1,6 @@
-build/
+# Ignora tutto dentro build/
+build/*
+# NON ignorare il Makefile
+!build/Makefile
 
 *.out
