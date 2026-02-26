@@ -5,6 +5,9 @@
 // otherwise one of these for known things.
 enum Token {
     tok_eof = -1,
+    // FIXME: i should probably have something like token_error to deal with nonsensical stuff
+    // (9.23.45 non deve essere tokenizzato come 9.24 e 0.45)
+    // The tutorial just doesn't care.
 
     // commands
     tok_def = -2,
@@ -15,10 +18,15 @@ enum Token {
     tok_number = -5,
 };
 
-static std::string IdentifierStr; // Filled in if tok_identifier
-static double NumVal;             // Filled in if tok_number
+// If the current token is an identifier, the IdentifierStr global variable holds the name of the identifier.
+// (IdentifierStr also saves keyword names)
+// If the current token is a numeric literal (like 1.0), NumVal holds its value.
+static std::string IdentifierStr;
+static double NumVal;
 
-/// gettok - Return the next token from standard input.
+// gettok - Return the next token from standard input.
+// Each token returned by our lexer will either be one of the Token enum values or
+// it will be an ‘unknown’ character like ‘+’, which is returned as its ASCII value
 static int gettok() {
     static int LastChar = ' ';  // last character read, but not processed
 
@@ -27,9 +35,9 @@ static int gettok() {
         LastChar = getchar();
 
     // identifier: [a-zA-Z][a-zA-Z0-9]*
-    if (isalpha(LastChar)) { 
+    if (isalpha(LastChar)) {
         IdentifierStr = LastChar;
-    
+
         while (isalnum((LastChar = getchar())))
             IdentifierStr += LastChar;
 
@@ -38,17 +46,31 @@ static int gettok() {
             return tok_def;
         if (IdentifierStr == "extern")
             return tok_extern;
-    
+
         return tok_identifier;
     }
-    
+
     // Number: [0-9.]+
-    if (isdigit(LastChar) || LastChar == '.') { 
-        std::string NumStr;
+    if (isdigit(LastChar) || LastChar == '.') {
+        std::string NumStr {};
+        // FIXME:
+        // bool DecimalPointFound {false};
+
         do {
             NumStr += LastChar;
             LastChar = getchar();
-        } while (isdigit(LastChar) || LastChar == '.'); // FIXME: it will incorrectly read “1.23.45.67” and handle it as if you typed in “1.23”. 
+
+            // FIXME: se faccio così 8.24.56 mi restituisce due token.
+            // Piuttosto dovrei gestire l'errore consumando fino alla fine della parola
+            // e restituendo un token_error
+            //
+            // check for multiple decimal points in a number literal (es: 8.23.154)
+            // if (LastChar == '.' && !DecimalPointFound) {
+            //     DecimalPointFound = true;
+            // } else if (LastChar == '.' && DecimalPointFound) {
+            //     break;
+            // }
+        } while (isdigit(LastChar) || LastChar == '.');
 
         NumVal = strtod(NumStr.c_str(), 0);
         return tok_number;
@@ -71,11 +93,11 @@ static int gettok() {
 
     // Otherwise, just return the character as its ascii value.
     // (probably an operator character like ‘+’)
+    // TODO: i should probably add specific token types for these
     int ThisChar = LastChar;
-    LastChar = getchar(); // spostiamo il cursore per la prossima chiamata
+    LastChar = getchar(); // spostiamo il cursore per la prossima chiamata (LastChar è static)
     return ThisChar;
 }
-
 
 int main() {
     int cur_tok;
@@ -85,22 +107,21 @@ int main() {
             case tok_def:
                 std::cout << "keyword def\n";
                 break;
-            
+
             case tok_extern:
                 std::cout << "keyword extern\n";
                 break;
-            
+
             case tok_identifier:
-                std::cout << IdentifierStr << "\n";
+                std::cout << "Identifier: " << IdentifierStr << "\n";
                 break;
-            
+
             case tok_number:
-                std::cout << NumVal << "\n";
+                std::cout << "Number: " << NumVal << "\n";
                 break;
-
+            // operator case
             default:
-                std::cout << "come sei finito qua?\n";
-
+                std::cout << static_cast<char>(cur_tok) << " (probably an operator)" << "\n";
         }
     }
 }

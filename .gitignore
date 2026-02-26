@@ -1,4 +1,3 @@
-SRC/
-BUILD/
-INSTALL/
-TEST/
+build/
+
+*.out
