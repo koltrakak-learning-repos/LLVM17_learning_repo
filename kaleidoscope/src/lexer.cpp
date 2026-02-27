@@ -1,22 +1,8 @@
+#include <cstdio>
 #include <string>
 #include <iostream>
 
-// The lexer returns tokens [0-255] (ascii value) if it is an unknown character (e.g. operators),
-// otherwise one of these for known things.
-enum Token {
-    tok_eof = -1,
-    // FIXME: i should probably have something like token_error to deal with nonsensical stuff
-    // (9.23.45 non deve essere tokenizzato come 9.24 e 0.45)
-    // The tutorial just doesn't care.
-
-    // commands
-    tok_def = -2,
-    tok_extern = -3,
-
-    // primary
-    tok_identifier = -4,
-    tok_number = -5,
-};
+#include "lexer.h"
 
 // If the current token is an identifier, the IdentifierStr global variable holds the name of the identifier.
 // (IdentifierStr also saves keyword names)
@@ -27,18 +13,18 @@ static double NumVal;
 // gettok - Return the next token from standard input.
 // Each token returned by our lexer will either be one of the Token enum values or
 // it will be an ‘unknown’ character like ‘+’, which is returned as its ASCII value
-static int gettok() {
+int gettok(FILE* InputFile) {
     static int LastChar = ' ';  // last character read, but not processed
 
     // Skip any whitespace.
     while (isspace(LastChar))
-        LastChar = getchar();
+        LastChar = fgetc(InputFile);
 
     // identifier: [a-zA-Z][a-zA-Z0-9]*
     if (isalpha(LastChar)) {
         IdentifierStr = LastChar;
 
-        while (isalnum((LastChar = getchar())))
+        while ( isalnum(LastChar=fgetc(InputFile)) )
             IdentifierStr += LastChar;
 
         // keyword
@@ -58,7 +44,7 @@ static int gettok() {
 
         do {
             NumStr += LastChar;
-            LastChar = getchar();
+            LastChar = fgetc(InputFile);
 
             // FIXME: se faccio così 8.24.56 mi restituisce due token.
             // Piuttosto dovrei gestire l'errore consumando fino alla fine della parola
@@ -80,11 +66,11 @@ static int gettok() {
     if (LastChar == '#') {
         // skip until end of line.
         do
-            LastChar = getchar();
+            LastChar = fgetc(InputFile);
         while (LastChar != EOF && LastChar != '\n' && LastChar != '\r');
 
         if (LastChar != EOF)
-            return gettok(); // return token after comment
+            return gettok(InputFile); // return token after comment
     }
 
     // Check for end of file.  Don't eat the EOF.
@@ -95,33 +81,50 @@ static int gettok() {
     // (probably an operator character like ‘+’)
     // TODO: i should probably add specific token types for these
     int ThisChar = LastChar;
-    LastChar = getchar(); // spostiamo il cursore per la prossima chiamata (LastChar è static)
+    LastChar = fgetc(InputFile); // spostiamo il cursore per la prossima chiamata (LastChar è static)
     return ThisChar;
 }
 
-int main() {
-    int cur_tok;
+// Uncomment se vuoi testare il lexer
+int main(int argc, char** argv) {
+    FILE* InputFile;
 
-    while((cur_tok=gettok()) != tok_eof) {
+    if (argc > 1) {
+        std::cout << "reading program from: " << argv[1] << "\n";
+        InputFile = fopen(argv[1], "r");
+        if (InputFile == NULL) {
+            printf("Errore apertura %s\n", argv[1]);
+            std::exit(127);
+        }
+    } else {
+        std::cout << "reading program from CLI\n";
+        InputFile = stdin;
+    }
+
+    int cur_tok;
+    while((cur_tok=gettok(InputFile)) != tok_eof) {
         switch (cur_tok) {
             case tok_def:
-                std::cout << "keyword def\n";
+                std::cout << "def\t - keyword\n";
                 break;
 
             case tok_extern:
-                std::cout << "keyword extern\n";
+                std::cout << "extern\t - keyword\n";
                 break;
 
             case tok_identifier:
-                std::cout << "Identifier: " << IdentifierStr << "\n";
+                std::cout << IdentifierStr << "\t - identifier\n";
                 break;
 
             case tok_number:
-                std::cout << "Number: " << NumVal << "\n";
+                std::cout << NumVal << "\t - number\n";
                 break;
-            // operator case
+
+            // operator/parenthesis case (most of the time)
             default:
-                std::cout << static_cast<char>(cur_tok) << " (probably an operator)" << "\n";
+                std::cout << static_cast<char>(cur_tok) << "\t - (probably) an operator or parenthesis\n";
         }
     }
+
+    fclose(InputFile);
 }
