@@ -4,11 +4,6 @@
 #include "lexer.h"
 #include "parser.h"
 
-enum class Mode {
-    CLI,
-    FILE
-};
-
 void HandleDefinition(FILE* InputFile) {
     if ( const auto node=ParseDefinition(InputFile) ) {
         fprintf(stderr, "Parsed a function definition.\n");
@@ -48,11 +43,8 @@ void HandleTopLevelExpression(FILE* InputFile) {
 ///   ::= external
 ///   ::= expression
 ///   ::= ';'
-void MainLoop(FILE* InputFile, Mode mode) {
+void MainLoop(FILE* InputFile) {
     while (true) {
-        if (mode == Mode::CLI)
-            fprintf(stderr, "ready> ");
-
         switch (CurTok) {
         case tok_eof:
             return;
@@ -69,7 +61,7 @@ void MainLoop(FILE* InputFile, Mode mode) {
             getNextToken(InputFile); // eat ';'
             break;
 
-         case tok_def:
+        case tok_def:
             HandleDefinition(InputFile);
             std::cout << "\n";
             break;
@@ -84,14 +76,13 @@ void MainLoop(FILE* InputFile, Mode mode) {
             std::cout << "\n";
             break;
         }
+
     }
 }
 
 int main(int argc, char** argv) {
     FILE* InputFile;
-    Mode mode {};
     if (argc > 1) {
-        mode = Mode::FILE;
         std::cout << "reading program from: " << argv[1] << "\n";
         InputFile = fopen(argv[1], "r");
         if (InputFile == NULL) {
@@ -99,18 +90,15 @@ int main(int argc, char** argv) {
             std::exit(127);
         }
     } else {
-        mode = Mode::CLI;
-        std::cout << "reading program from CLI\n";
-        InputFile = stdin;
+        std::cout << "specify a kaleidoscope file to parse\n";
+        std::exit(127);
     }
 
     // Prime the first token.
-    if (mode == Mode::CLI)
-        fprintf(stderr, "ready> ");
     getNextToken(InputFile);
 
     // Run the main "interpreter loop" now.
-    MainLoop(InputFile, mode);
+    MainLoop(InputFile);
 
     fclose(InputFile);
     return 0;

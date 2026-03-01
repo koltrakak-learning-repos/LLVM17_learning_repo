@@ -18,7 +18,7 @@ INPUT_PROGRAM := $(SRC_DIR)/test_parser.kal
 
 FLAGS := -fuse-ld=mold -I$(INCLUDE_DIR)
 
-.PHONY: build run run-file test clean
+.PHONY: build run run-file test-lexer test-parser clean
 
 build:
 	mkdir -p $(BUILD_DIR)
@@ -30,10 +30,15 @@ run: build
 run-file: build
 	$(TARGET) $(INPUT_PROGRAM)
 
-test:
+test-lexer:
 	mkdir -p $(BUILD_DIR)
-	clang++ $(FLAGS) $(TEST_DIR)/lexer_test.cpp $(SRC_DIR)/lexer.cpp -o $(TEST_TARGET)
-	$(TEST_TARGET) $(INPUT_PROGRAM)
+	clang++ $(FLAGS) $(TEST_DIR)/lexer_test.cpp $(SRC_DIR)/lexer.cpp -o $(BUILD_DIR)/lexer_test.out
+	$(BUILD_DIR)/lexer_test.out $(INPUT_PROGRAM)
+
+test-parser:
+	mkdir -p $(BUILD_DIR)
+	clang++ $(FLAGS) $(TEST_DIR)/parser_test.cpp $(SRC_DIR)/lexer.cpp $(SRC_DIR)/ast.cpp $(SRC_DIR)/parser.cpp -o $(BUILD_DIR)/parser_test.out
+	$(BUILD_DIR)/parser_test.out $(INPUT_PROGRAM)
 
 clean:
 	rm -rf $(BUILD_DIR)
