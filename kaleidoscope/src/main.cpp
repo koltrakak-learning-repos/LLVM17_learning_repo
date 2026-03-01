@@ -4,12 +4,18 @@
 #include "lexer.h"
 #include "parser.h"
 
+enum class Mode {
+    CLI,
+    FILE
+};
+
 void HandleDefinition(FILE* InputFile) {
     if ( const auto node=ParseDefinition(InputFile) ) {
         fprintf(stderr, "Parsed a function definition.\n");
         std::cout << node->ToString() << "\n";
     } else {
         // Skip token for error recovery.
+        fprintf(stderr, "skipping problematic token: %d\n", CurTok);
         getNextToken(InputFile);
     }
 }
@@ -17,9 +23,10 @@ void HandleDefinition(FILE* InputFile) {
 void HandleExtern(FILE* InputFile) {
     if ( const auto node=ParseExtern(InputFile) ) {
         fprintf(stderr, "Parsed an extern\n");
-        std::cout << node->ToString()<< "\n";
+        std::cout << node->ToString() << "\n";
     } else {
         // Skip token for error recovery.
+        fprintf(stderr, "skipping problematic token: %d\n", CurTok);
         getNextToken(InputFile);
     }
 }
@@ -28,9 +35,10 @@ void HandleTopLevelExpression(FILE* InputFile) {
     // Evaluate a top-level expression into an anonymous function.
     if ( const auto node=ParseTopLevelExpr(InputFile) ) {
         fprintf(stderr, "Parsed a top-level expr\n");
-        std::cout << node->ToString()<< "\n";
+        std::cout << node->ToString() << "\n";
     } else {
         // Skip token for error recovery.
+        fprintf(stderr, "skipping problematic token: %d\n", CurTok);
         getNextToken(InputFile);
     }
 }
@@ -40,10 +48,10 @@ void HandleTopLevelExpression(FILE* InputFile) {
 ///   ::= external
 ///   ::= expression
 ///   ::= ';'
-void MainLoop(FILE* InputFile) {
+void MainLoop(FILE* InputFile, Mode mode) {
     while (true) {
-        // FIXME: aggiusta per quando stai parsando un file
-        fprintf(stderr, "ready> ");
+        if (mode == Mode::CLI)
+            fprintf(stderr, "ready> ");
 
         switch (CurTok) {
         case tok_eof:
@@ -73,12 +81,16 @@ void MainLoop(FILE* InputFile) {
             HandleTopLevelExpression(InputFile);
             break;
         }
+
+        std::cout << "\n";
     }
 }
 
 int main(int argc, char** argv) {
     FILE* InputFile;
+    Mode mode {};
     if (argc > 1) {
+        mode = Mode::FILE;
         std::cout << "reading program from: " << argv[1] << "\n";
         InputFile = fopen(argv[1], "r");
         if (InputFile == NULL) {
@@ -86,16 +98,18 @@ int main(int argc, char** argv) {
             std::exit(127);
         }
     } else {
+        mode = Mode::CLI;
         std::cout << "reading program from CLI\n";
         InputFile = stdin;
     }
 
     // Prime the first token.
-    fprintf(stderr, "ready> ");
+    if (mode == Mode::CLI)
+        fprintf(stderr, "ready> ");
     getNextToken(InputFile);
 
     // Run the main "interpreter loop" now.
-    MainLoop(InputFile);
+    MainLoop(InputFile, mode);
 
     fclose(InputFile);
     return 0;
