@@ -11,6 +11,11 @@ public:
     virtual ~ExprAST() = default;
 
     virtual std::string ToString() const = 0;
+    // codegen() emits LLVM IR for the AST node along with all the things
+    // it depends on
+    // TODO: specifica meglio cosa sono le "things it depends on"
+    // “Value” is the class used to represent an SSA register in LLVM
+    virtual Value* codegen() const = 0;
 };
 
 /// NumberExprAST - Expression class for numeric literals like "1.0".
@@ -23,6 +28,7 @@ public:
     NumberExprAST(double Val) : Val(Val) {}
 
     std::string ToString() const override;
+    Value* codegen() const override;
 };
 
 /// VariableExprAST - Expression class for referencing a variable, like "a".
@@ -35,6 +41,7 @@ public:
     VariableExprAST(const std::string &Name) : Name(Name) {}
 
     std::string ToString() const override;
+    Value *VariableExprAST::codegen() const override;
 };
 
 /// BinaryExprAST - Expression class for a binary operator.
@@ -49,6 +56,7 @@ public:
         : Op(Op), LHS(std::move(LHS)), RHS(std::move(RHS)) {}
 
     std::string ToString() const override;
+    Value *BinaryExprAST::codegen() const override;
 };
 
 /// CallExprAST - Expression class for function calls.
@@ -63,6 +71,7 @@ public:
         : Callee(Callee), Args(std::move(Args)) {}
 
     std::string ToString() const override;
+    Value *CallExprAST::codegen() const override;
 };
 
 /// PrototypeAST - This class represents the "prototype" for a function, which captures
@@ -102,3 +111,4 @@ public:
 /// return types. They always return a nullptr
 std::unique_ptr<ExprAST> LogError(const char *Str);
 std::unique_ptr<PrototypeAST> LogErrorP(const char *Str);
+Value *LogErrorV(const char *Str);
