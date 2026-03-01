@@ -1,275 +1,233 @@
-/// CurTok/getNextToken - Provide a simple token buffer.  CurTok is the current
-/// token the parser is looking at.  getNextToken reads another token from the
-/// lexer and updates CurTok with its results.
-static int CurTok;
-static int getNextToken() {
-    return CurTok = gettok();
+#include <cstdio>
+#include <iostream>
+
+#include "lexer.h"
+#include "parser.h"
+
+
+/// This holds the precedence for each binary operator that is defined.
+// 1 is lowest precedence.
+std::map<char, int> BinopPrecedence = {
+    {'<', 10},
+    {'+', 20},
+    {'-', 20},
+    {'*', 40},
+};
+
+/// Get the precedence of the pending binary operator token.
+int GetTokPrecedence() {
+    if (!isascii(CurTok))
+        return -1;
+
+    // Make sure it's a declared binop.
+    int TokPrec = BinopPrecedence[CurTok];
+    if (TokPrec <= 0)
+        return -1;
+
+    return TokPrec;
 }
-
-
-/// LogError* - These are little helper functions for error handling.
-std::unique_ptr<ExprAST> LogError(const char *Str) {
-    fprintf(stderr, "Error: %s\n", Str);
-    return nullptr;
-}
-std::unique_ptr<PrototypeAST> LogErrorP(const char *Str) {
-    LogError(Str);
-    return nullptr;
-}
-
-
-/* Parsing primary expressions */
 
 
 /// numberexpr ::= number
-static std::unique_ptr<ExprAST> ParseNumberExpr() {
+std::unique_ptr<ExprAST> ParseNumberExpr(FILE* InputFile) {
     auto Result = std::make_unique<NumberExprAST>(NumVal);
-    getNextToken(); // consume the number
+    getNextToken(InputFile); // consume the number
+
     return std::move(Result);
 }
 
-
 /// parenexpr ::= '(' expression ')'
-static std::unique_ptr<ExprAST> ParseParenExpr() {
-    getNextToken(); // eat (.
-    auto V = ParseExpression();
+std::unique_ptr<ExprAST> ParseParenExpr(FILE* InputFile) {
+    getNextToken(InputFile); // eat (.
+    auto V = ParseExpression(InputFile);
     if (!V)
-        return nullptr;
+        return LogError("ParseParenExpr | couldn't parse the expression inside the parenthesis");
 
     if (CurTok != ')')
-        return LogError("expected ')'");
-    getNextToken(); // eat ).
+        return LogError("ParseParenExpr | expected ')'");
+    getNextToken(InputFile); // eat ).
+
     return V;
 }
 
 /// identifierexpr
 ///   ::= identifier
 ///   ::= identifier '(' expression* ')'
-static std::unique_ptr<ExprAST> ParseIdentifierExpr() {
+std::unique_ptr<ExprAST> ParseIdentifierExpr(FILE* InputFile) {
     std::string IdName = IdentifierStr;
-
-    getNextToken();  // eat identifier.
+    getNextToken(InputFile);  // eat identifier.
 
     if (CurTok != '(') // Simple variable ref.
         return std::make_unique<VariableExprAST>(IdName);
 
     // Call.
-    getNextToken();  // eat (
+    getNextToken(InputFile);  // eat (
     std::vector<std::unique_ptr<ExprAST>> Args;
     if (CurTok != ')') {
         while (true) {
-            if (auto Arg = ParseExpression())
+            if (auto Arg = ParseExpression(InputFile))
                 Args.push_back(std::move(Arg));
             else
-                return nullptr;
+                return LogError("ParseIdentifierExpr | couldn't parse an argument of the call expression");
 
             if (CurTok == ')')
                 break;
 
             if (CurTok != ',')
-                return LogError("Expected ')' or ',' in argument list");
-            getNextToken();
+                return LogError("ParseIdentifierExpr | Expected ')' or ',' in argument list");
+
+            getNextToken(InputFile); // eat ,
         }
     }
-
     // Eat the ')'.
-    getNextToken();
+    getNextToken(InputFile);
 
     return std::make_unique<CallExprAST>(IdName, std::move(Args));
 }
+
 
 /// primary
 ///   ::= identifierexpr
 ///   ::= numberexpr
 ///   ::= parenexpr
-static std::unique_ptr<ExprAST> ParsePrimary() {
+std::unique_ptr<ExprAST> ParsePrimary(FILE* InputFile) {
     switch (CurTok) {
-        default:
-            return LogError("unknown token when expecting an expression");
-        case tok_identifier:
-            return ParseIdentifierExpr();
-        case tok_number:
-            return ParseNumberExpr();
-        case '(':
-            return ParseParenExpr();
+    default:
+        return LogError("ParsePrimary | unknown token when expecting a primary expression");
+    case tok_identifier:
+        return ParseIdentifierExpr(InputFile);
+    case tok_number:
+        return ParseNumberExpr(InputFile);
+    case '(':
+        return ParseParenExpr(InputFile);
     }
 }
 
-
-/* Parsing Binary expressions */
-
-
-/// The basic idea of operator precedence parsing is to break down an expression
-/// with potentially ambiguous binary operators into pieces. Consider, for example,
-/// the expression “a+b+(c+d)*e*f+g”. Operator precedence parsing considers this as
-/// a stream of primary expressions separated by binary operators. As such, it will
-/// first parse the leading primary expression “a”, then it will see the pairs
-/// [+, b] [+, (c+d)] [*, e] [*, f] and [+, g]. 
-/// Note that because parentheses are primary expressions, the binary expression parser
-/// doesn’t need to worry about nested subexpressions like (c+d) at all.
-
-/// BinopPrecedence - This holds the precedence for each binary operator that is
-/// defined.
-static std::map<char, int> BinopPrecedence;
-
-/// GetTokPrecedence - Get the precedence of the pending binary operator token.
-static int GetTokPrecedence() {
-    if (!isascii(CurTok))
-        return -1;
-
-    // Make sure it's a declared binop.
-    int TokPrec = BinopPrecedence[CurTok];
-    if (TokPrec <= 0) 
-        return -1;
-    return TokPrec;
-}
-
-/// To start, an expression is a primary expression potentially followed by
-/// a sequence of [binop,primaryexpr] pairs. /// expression
-
 /// expression
 ///   ::= primary binoprhs
-///
-static std::unique_ptr<ExprAST> ParseExpression() {
-  auto LHS = ParsePrimary();
-  if (!LHS)
-    return nullptr;
+std::unique_ptr<ExprAST> ParseExpression(FILE* InputFile) {
+    auto LHS = ParsePrimary(InputFile);
+    if (!LHS)
+        return LogError("ParseExpression | couldn't parse a primary expression");
 
-  return ParseBinOpRHS(0, std::move(LHS));
+    return ParseBinOpRHS(0, std::move(LHS), InputFile);
 }
-
-/// ParseBinOpRHS is the function that parses the sequence of pairs for us.
-/// It takes a precedence and a pointer to an expression for the part that has been
-/// parsed so far.
-/// The precedence value passed into ParseBinOpRHS indicates the minimal operator
-/// precedence that the function is allowed to eat. For example, if the current pair 
-/// stream is [+, x] and ParseBinOpRHS is passed in a precedence of 40, it will not
-/// consume any tokens (because the precedence of ‘+’ is only 20). 
 
 /// binoprhs
 ///   ::= ('+' primary)*
-static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec, std::unique_ptr<ExprAST> LHS) {
-    // If this is a binop, find its precedence.
+std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec, std::unique_ptr<ExprAST> LHS, FILE* InputFile) {
     while (true) {
+        // If this is a binop, find its precedence.
+        // ritorna -1 per token che non sono binop
         int TokPrec = GetTokPrecedence();
-
         // If this is a binop that binds at least as tightly as the current binop,
-        // consume it, otherwise we are done. (Because we defined invalid tokens
-        // to have a precedence of -1, this check implicitly knows that the
-        // pair-stream ends when the token stream runs out of binary operators)
+        // consume it, otherwise we are done parsing the rhs and we can return the
+        // expression accumulated in LHS.
         if (TokPrec < ExprPrec)
             return LHS;
 
-        // Okay, we know this is a binop. 
+        // Okay, we know this is a binop. We can build the [binOp, rhs] pair
         int BinOp = CurTok;
-        getNextToken();  // eat binop
-
+        getNextToken(InputFile);  // eat binop
         // Parse the primary expression after the binary operator.
-        auto RHS = ParsePrimary();
+        auto RHS = ParsePrimary(InputFile);
         if (!RHS)
-            return nullptr;
+            return LogError("ParseBinOpRHS | couldn't parse primary expression");
 
-        // Now that we parsed the left-hand side of an expression and one pair of the
-        // RHS sequence, we have to decide which way the expression associates. In
-        // particular, we could have “(a+b) binop unparsed” or “a + (b binop unparsed)”.
-        // To determine this, we look ahead at “binop” to determine its precedence and
-        // compare it to BinOp’s precedence (which is ‘+’ in this case):
-
-        // If BinOp binds less tightly with RHS than the operator after RHS, let
-        // the pending operator take RHS as its LHS (associo così: a + (b binop unparsed) ).
+        // We parsed the left-hand side of an expression and one pair of the RHS sequence,
+        // we have to decide which way the expression associates. We could have
+        // (a cur_binop b) next_binop unparsed” or “a cur_binop (b next_binop unparsed).
+        // -> We just lookup the precedences!
+        // If the current BinOp binds less tightly with RHS than the operator after
+        // RHS, let the pending operator take RHS as its LHS. That is, the next operator
+        // has higher precedence than the current operator.
         int NextPrec = GetTokPrecedence();
         if (TokPrec < NextPrec) {
-            RHS = ParseBinOpRHS(TokPrec + 1, std::move(RHS)); // TokPrec+1” == minimum precedence required for the function to continue
+            // the next operator has higher precedence, so the current expression associates
+            // to the right. The rhs of the current operator is the entire expression composed
+            // of binops with higher precedence, thus, TokPrec+1 is the new minimum precedence
+            // allowed for ParseBinOpRHS to continue parsing.
+            RHS = ParseBinOpRHS(TokPrec+1, std::move(RHS), InputFile);
             if (!RHS)
-                return nullptr;
+                return LogError("ParseBinOpRHS | couldn't parse rhs");
         }
-        // Merge LHS/RHS (associo così: (a + b) binop unparsed; con b che potrebbe 
-        // essere composto).
+
+        // Merge LHS/RHS.
         LHS = std::make_unique<BinaryExprAST>(BinOp, std::move(LHS), std::move(RHS));
-    } // In our example above, this will turn “a+b+” into “(a+b)” and execute the next iteration of the loop, with “+” as the current token.
+    }
 }
-
-
-/* Parsing functions */
-
 
 /// prototype
 ///   ::= id '(' id* ')'
-static std::unique_ptr<PrototypeAST> ParsePrototype() {
+std::unique_ptr<PrototypeAST> ParsePrototype(FILE* InputFile) {
     if (CurTok != tok_identifier)
-        return LogErrorP("Expected function name in prototype");
-
+        return LogErrorP("ParsePrototype | Expected function name in prototype");
     std::string FnName = IdentifierStr;
-    getNextToken();
+    getNextToken(InputFile); // eat identifier
 
     if (CurTok != '(')
-        return LogErrorP("Expected '(' in prototype");
+        return LogErrorP("ParseProtytype | Expected '(' in prototype");
 
-    // Read the list of argument names.
+    // Read the list of argument names (whitespace separated).
     std::vector<std::string> ArgNames;
-    while (getNextToken() == tok_identifier)
+    while (getNextToken(InputFile) == tok_identifier)
         ArgNames.push_back(IdentifierStr);
 
+    // TODO: vedi se vuoi aggiustare qua per avere le virgole anche nei prototipi
+    // delle funzioni e non solo nelle chiamate
+    // while (true) {
+    //     if (CurTok == ')')
+    //         break;
+
+    //     if (CurTok != ',')
+    //         return LogError("ParseIdentifierExpr | Expected ')' or ',' in argument list");
+
+    //     getNextToken(InputFile); // eat ,
+    // }
+
     if (CurTok != ')')
-        return LogErrorP("Expected ')' in prototype");
+        return LogErrorP("ParsePrototype | Expected ')' in prototype");
 
     // success.
-    getNextToken();  // eat ')'.
+    getNextToken(InputFile);  // eat ')'.
 
     return std::make_unique<PrototypeAST>(FnName, std::move(ArgNames));
 }
 
-/// definition ::= 'def' prototype expression
-static std::unique_ptr<FunctionAST> ParseDefinition() {
-  getNextToken();  // eat def.
-  auto Proto = ParsePrototype();
-  if (!Proto) return nullptr;
+/// definition
+///   ::= 'def' prototype expression
+std::unique_ptr<FunctionAST> ParseDefinition(FILE* InputFile) {
+    getNextToken(InputFile);  // eat def.
 
-  if (auto E = ParseExpression()) // an expression implements the function body
-    return std::make_unique<FunctionAST>(std::move(Proto), std::move(E));
+    auto Proto = ParsePrototype(InputFile);
+    if (!Proto)
+        // TODO: should probably log something (helper functions incompatible with FunctionAST)
+        return nullptr;
 
-  return nullptr;
+    auto Expr = ParseExpression(InputFile);
+    if (!Expr)
+        // TODO: should probably log something (helper functions incompatible with FunctionAST)
+        return nullptr;
+
+    return std::make_unique<FunctionAST>(std::move(Proto), std::move(Expr));
 }
 
-/// external ::= 'extern' prototype
-static std::unique_ptr<PrototypeAST> ParseExtern() {
-  getNextToken();  // eat extern.
-  return ParsePrototype();
+/// external
+///   ::= 'extern' prototype
+std::unique_ptr<PrototypeAST> ParseExtern(FILE* InputFile) {
+    getNextToken(InputFile);  // eat extern.
+    return ParsePrototype(InputFile);
 }
 
-/// toplevelexpr ::= expression
-static std::unique_ptr<FunctionAST> ParseTopLevelExpr() {
-  if (auto E = ParseExpression()) {
-    // Make an anonymous proto.
-    auto Proto = std::make_unique<PrototypeAST>("", std::vector<std::string>());
-    return std::make_unique<FunctionAST>(std::move(Proto), std::move(E));
-  }
-  return nullptr;
-}
-
-
-/* driver */
-
-
-/// top ::= definition | external | expression | ';'
-static void MainLoop() {
-  while (true) {
-    fprintf(stderr, "ready> ");
-    switch (CurTok) {
-    case tok_eof:
-      return;
-    case ';': // ignore top-level semicolons.
-      getNextToken();
-      break;
-    case tok_def:
-      HandleDefinition();
-      break;
-    case tok_extern:
-      HandleExtern();
-      break;
-    default:
-      HandleTopLevelExpression();
-      break;
+/// toplevelexpr
+///   ::= expression
+std::unique_ptr<FunctionAST> ParseTopLevelExpr(FILE* InputFile) {
+    if (auto E = ParseExpression(InputFile)) {
+        // Make an anonymous proto.
+        auto Proto = std::make_unique<PrototypeAST>("__anon_expr", std::vector<std::string>());
+        return std::make_unique<FunctionAST>(std::move(Proto), std::move(E));
     }
-  }
+
+    // TODO: should probably log something (helper functions incompatible with FunctionAST)
+    return nullptr;
 }

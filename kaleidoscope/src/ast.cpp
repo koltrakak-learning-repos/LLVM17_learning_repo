@@ -1,93 +1,72 @@
-#include <memory>
+#include <cstdio>
 #include <string>
-#include <vector>
 
-/// ExprAST - Base class for all expression nodes.
-class ExprAST {
-public:
-    virtual ~ExprAST() = default;
-};
+#include "ast.h"
 
-/// NumberExprAST - Expression class for numeric literals like "1.0".
-class NumberExprAST : public ExprAST {
-    double Val;
+// Inserisci qua i metodi non banali delle classi
 
-public:
-    NumberExprAST(double Val) : Val(Val) {} // dopo i due punti si ha una lista di inizializzazione
-};
+std::string NumberExprAST::ToString() const {
+    return std::to_string(Val);
+}
 
-/// VariableExprAST - Expression class for referencing a variable, like "a".
-class VariableExprAST : public ExprAST {
-    std::string Name;
+std::string VariableExprAST::ToString() const {
+    return Name;
+}
 
-public:
-    VariableExprAST(const std::string &Name) : Name(Name) {}
-};
+std::string BinaryExprAST::ToString() const {
+    std::string LeftString = LHS->ToString();
+    std::string RightString = RHS->ToString();
 
-/// BinaryExprAST - Expression class for a binary operator.
-class BinaryExprAST : public ExprAST {
-    char Op;
-    // Un nodo BinaryExprAst è responsabile della vita dei suoi figli.
-    // Quando viene distrutto, anche i figli devono essere distrutti.
-    // Usano unique_ptr i sottoalberi vengono distrutti quando il padre 
-    // viene distrutto (gli smart pointer fanno ref counting)
-    std::unique_ptr<ExprAST> LHS, RHS;
+    return "(" + LeftString + Op + RightString + ")";
+}
 
-    // unique_ptr possono avere un solo proprietario,
-    // move() permette di trasferire la ownership al 
-    // nodo BinaryExprAST (padre).
-    // Gli unique_ptr passati al costruttore vengono
-    // annullati
-    // 
-    // move annulla il puntatore alla memoria dell'oggetto,
-    // e restituisce un puntatore alla stessa memoria in maniera
-    // da "spostarla". 
-public:
-    BinaryExprAST(char Op, std::unique_ptr<ExprAST> LHS,
-                    std::unique_ptr<ExprAST> RHS)
-        : Op(Op), LHS(std::move(LHS)), RHS(std::move(RHS)) {} 
-};
+std::string CallExprAST::ToString() const {
+    std::string res {};
 
-/// CallExprAST - Expression class for function calls.
-class CallExprAST : public ExprAST {
-    std::string Callee; // function name
-    std::vector<std::unique_ptr<ExprAST>> Args;
+    res += Callee;
+    res += "(";
+    for(const auto& arg : Args) {
+        res += arg->ToString();
+        res += ",";
+    }
+    // se ci sono argomenti sostituisco l'ultimo ',' spurio con ')'
+    if(Args.size() > 0)
+        res.at(res.size()-1) = ')';
+    else
+        res += ')';
 
-public:
-    CallExprAST(const std::string &Callee,
-                std::vector<std::unique_ptr<ExprAST>> Args)
-        : Callee(Callee), Args(std::move(Args)) {}
-};
+    return res;
+}
 
+std::string PrototypeAST::ToString() const {
+    std::string res {};
 
-/// PrototypeAST - This class represents the "prototype" for a function,
-/// which captures its name, and its argument names (thus implicitly the number
-/// of arguments the function takes).
-class PrototypeAST {
-    std::string Name;
-    std::vector<std::string> Args;
+    res += Name;
+    res += "(";
+    for(const auto& arg : Args) {
+        res += arg;
+        res += " "; // i parametri formali non sono comma separated in kaleidoscope
+    }
+     // se ci sono argomenti sostituisco l'ultimo ',' spurio con ')'
+    if(Args.size() > 0)
+        res.at(res.size()-1) = ')';
+    else
+        res += ')';
 
-public:
-    PrototypeAST(const std::string &Name, std::vector<std::string> Args)
-        : Name(Name), Args(std::move(Args)) {}
+    return res;
+}
 
-    const std::string &getName() const { return Name; }
-};
+std::string FunctionAST::ToString() const {
+    return Proto->ToString() + "\n\t" + Body->ToString();
+}
 
-/// FunctionAST - This class represents a function definition itself.
-class FunctionAST {
-    std::unique_ptr<PrototypeAST> Proto;
-    std::unique_ptr<ExprAST> Body; // FIXME: il body è un unica espressione?
+/// LogError* - These are little helper functions for error handling.
+std::unique_ptr<ExprAST> LogError(const char *Str) {
+    fprintf(stderr, "Error: %s\n", Str);
+    return nullptr;
+}
 
-public:
-    FunctionAST(std::unique_ptr<PrototypeAST> Proto,
-                std::unique_ptr<ExprAST> Body) 
-        : Proto(std::move(Proto)), Body(std::move(Body)) {}
-};
-
-
-int main() {
-    auto LHS = std::make_unique<VariableExprAST>("x");
-    auto RHS = std::make_unique<VariableExprAST>("y");
-    auto Result = std::make_unique<BinaryExprAST>('+', std::move(LHS), std::move(RHS));
+std::unique_ptr<PrototypeAST> LogErrorP(const char *Str) {
+    LogError(Str);
+    return nullptr;
 }

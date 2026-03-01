@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdio>
+
 // The lexer returns tokens [0-255] (ascii value) if it is an unknown character (e.g. operators),
 // otherwise one of these for known things.
 enum Token {
@@ -16,6 +18,20 @@ enum Token {
     tok_identifier = -4,
     tok_number = -5,
 };
+
+/// CurTok/getNextToken - Provide a simple token buffer.  CurTok is the current
+/// token the parser is looking at.  getNextToken reads another token from the
+/// lexer and updates CurTok with its results.
+extern int CurTok;
+int getNextToken(FILE* InputFile);
+
+
+// If the current token is an identifier, the IdentifierStr global variable holds the name of the identifier.
+// (IdentifierStr also saves keyword names)
+// If the current token is a numeric literal (like 1.0), NumVal holds its value.
+extern std::string IdentifierStr;
+extern double NumVal;
+
 
 // gettok - Return the next token from already opened InputFile.
 // Each token returned by our lexer will either be one of the Token enum values or
