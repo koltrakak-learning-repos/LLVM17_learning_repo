@@ -14,9 +14,8 @@ MAIN := $(SRC_DIR)/main.cpp
 
 TARGET := $(BUILD_DIR)/kaleidoscope.out
 INPUT_PROGRAM := $(KAL_SRC_DIR)/test_codegen.kal
-
-LLVM_FLAGS := $(shell llvm-config --cxxflags --ldflags --system-libs --libs core)
-FLAGS := -fuse-ld=mold -I$(INCLUDE_DIR)
+LLVM_FLAGS := $(shell llvm-config --cxxflags --ldflags --system-libs --libs core orcjit native)
+FLAGS := -fuse-ld=mold -rdynamic -I$(INCLUDE_DIR)
 
 .PHONY: build run run-file test-lexer test-parser test-codegen clean
 

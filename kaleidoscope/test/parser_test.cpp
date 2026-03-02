@@ -5,11 +5,14 @@
 #include "ast.h"
 #include "parser.h"
 
+// libraries i have to include because of the state sotto
+// altrimenti linker error
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Value.h>
 #include <llvm/IR/Function.h>
+#include <llvm/IR/PassManager.h>
 
 // global state used for codegen (i don't use in this test, but
 // i have to include it anyway, otherwise i get a linker error)
@@ -17,6 +20,9 @@ std::unique_ptr<LLVMContext> TheContext;
 std::unique_ptr<Module> TheModule;
 std::unique_ptr<IRBuilder<>> Builder;
 std::map<std::string, Value*> NamedValues;
+std::unique_ptr<FunctionPassManager> TheFPM;
+std::unique_ptr<FunctionAnalysisManager> TheFAM;
+std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
 
 void HandleDefinition(FILE* InputFile) {
     if ( const auto node=ParseDefinition(InputFile) ) {

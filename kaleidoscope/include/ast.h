@@ -108,7 +108,7 @@ public:
         : Proto(std::move(Proto)), Body(std::move(Body)) {}
 
     std::string ToString() const;
-    Function* codegen() const;
+    Function* codegen(); // non const dato che il nodo proto subisce una move
 };
 
 /// LogError* - These are little helper functions for error handling.
