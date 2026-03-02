@@ -4,6 +4,11 @@
 #include <vector>
 #include <memory>
 
+#include <llvm/IR/Value.h>
+#include <llvm/IR/Function.h>
+
+using namespace llvm;
+
 /// ExprAST - Base class for all expression nodes.
 class ExprAST
 {
@@ -11,9 +16,7 @@ public:
     virtual ~ExprAST() = default;
 
     virtual std::string ToString() const = 0;
-    // codegen() emits LLVM IR for the AST node along with all the things
-    // it depends on
-    // TODO: specifica meglio cosa sono le "things it depends on"
+    // codegen() emits LLVM IR for the AST node recursively.
     // “Value” is the class used to represent an SSA register in LLVM
     virtual Value* codegen() const = 0;
 };
@@ -41,7 +44,7 @@ public:
     VariableExprAST(const std::string &Name) : Name(Name) {}
 
     std::string ToString() const override;
-    Value *VariableExprAST::codegen() const override;
+    Value* codegen() const override;
 };
 
 /// BinaryExprAST - Expression class for a binary operator.
@@ -56,7 +59,7 @@ public:
         : Op(Op), LHS(std::move(LHS)), RHS(std::move(RHS)) {}
 
     std::string ToString() const override;
-    Value *BinaryExprAST::codegen() const override;
+    Value* codegen() const override;
 };
 
 /// CallExprAST - Expression class for function calls.
@@ -71,7 +74,7 @@ public:
         : Callee(Callee), Args(std::move(Args)) {}
 
     std::string ToString() const override;
-    Value *CallExprAST::codegen() const override;
+    Value* codegen() const override;
 };
 
 /// PrototypeAST - This class represents the "prototype" for a function, which captures
@@ -90,6 +93,7 @@ public:
 
     const std::string &getName() const { return Name; }
     std::string ToString() const;
+    Function* codegen() const;
 };
 
 /// FunctionAST - This class represents a function definition itself.
@@ -104,6 +108,7 @@ public:
         : Proto(std::move(Proto)), Body(std::move(Body)) {}
 
     std::string ToString() const;
+    Function* codegen() const;
 };
 
 /// LogError* - These are little helper functions for error handling.
@@ -111,4 +116,4 @@ public:
 /// return types. They always return a nullptr
 std::unique_ptr<ExprAST> LogError(const char *Str);
 std::unique_ptr<PrototypeAST> LogErrorP(const char *Str);
-Value *LogErrorV(const char *Str);
+Value* LogErrorV(const char *Str);

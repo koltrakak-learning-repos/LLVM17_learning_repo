@@ -79,7 +79,6 @@ std::unique_ptr<FunctionAST> ParseDefinition(FILE* InputFile);
 ///   ::= 'extern' prototype
 std::unique_ptr<PrototypeAST> ParseExtern(FILE* InputFile);
 
-
 /// Handle top level expressions by defining anonymous zero argument functions
 ///
 /// toplevelexpr
