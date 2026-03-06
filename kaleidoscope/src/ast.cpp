@@ -221,9 +221,6 @@ Function* FunctionAST::codegen() {
     // First, check for an existing function from a previous 'extern' declaration
     // inside any module symbol table. Se non c'è, generiamo il prototipo nel current
     // module (grazie a getFunction()).
-
-    // FIXME: vedi se devo fare effettivamente così
-    // auto &P = *Proto;
     auto FuncName = Proto->getName();
     FunctionProtos[Proto->getName()] = std::move(Proto);
     Function *TheFunction = getFunction(FuncName);

@@ -57,7 +57,7 @@ std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
 
 ExitOnError ExitOnErr;
 
-// ----- figata -----
+// ----- builtin -----
 // siccome il jit risolve i simboli utilizzando anche il dynamic linker
 // (vedi commento sotto). Possiamo estendere kaleidoscope aggiungendo
 // delle funzioni "builtin" al binario stesso, che verranno trovate dal
@@ -78,7 +78,7 @@ extern "C" double putchard(double X) {
     fputc((char)X, stderr);
     return 0;
 }
-
+// -------------------
 
 
 
