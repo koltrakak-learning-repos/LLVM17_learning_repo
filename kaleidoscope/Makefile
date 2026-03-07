@@ -30,7 +30,7 @@ run-file: build
 	$(TARGET) $(INPUT_PROGRAM)
 
 
-test-lexer: INPUT_PROGRAM := $(KAL_SRC_DIR)/fibonacci.kal
+test-lexer: INPUT_PROGRAM := $(KAL_SRC_DIR)/test_lexer.kal
 test-lexer:
 	mkdir -p $(BUILD_DIR)
 	clang++ $(FLAGS) $(TEST_DIR)/lexer_test.cpp $(SRC_DIR)/lexer.cpp -o $(BUILD_DIR)/lexer_test.out

@@ -41,6 +41,14 @@ int main(int argc, char** argv) {
                 std::cout << "else\t - keyword\n";
                 break;
 
+            case tok_for:
+                std::cout << "for\t - keyword\n";
+                break;
+
+            case tok_in:
+                std::cout << "in\t - keyword\n";
+                break;
+
             case tok_identifier:
                 std::cout << IdentifierStr << "\t - identifier\n";
                 break;

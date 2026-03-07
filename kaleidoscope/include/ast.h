@@ -92,6 +92,26 @@ public:
     Value* codegen() const override;
 };
 
+/// ForExprAST - Expression class for for/in.
+class ForExprAST : public ExprAST {
+private:
+    std::string VarName;
+    std::unique_ptr<ExprAST> Start;
+    std::unique_ptr<ExprAST> End;
+    std::unique_ptr<ExprAST> Step;
+    std::unique_ptr<ExprAST> Body;
+
+public:
+    ForExprAST(const std::string &VarName, std::unique_ptr<ExprAST> Start,
+                std::unique_ptr<ExprAST> End, std::unique_ptr<ExprAST> Step,
+                std::unique_ptr<ExprAST> Body)
+        : VarName(VarName), Start(std::move(Start)), End(std::move(End)),
+        Step(std::move(Step)), Body(std::move(Body)) {}
+
+    std::string ToString() const override;
+    Value *codegen() const override;
+};
+
 /// PrototypeAST - This class represents the "prototype" for a function, which captures
 /// its name, and its argument names (thus the number of arguments the function takes).
 /// In Kaleidoscope, functions are typed with just a count of their arguments since all

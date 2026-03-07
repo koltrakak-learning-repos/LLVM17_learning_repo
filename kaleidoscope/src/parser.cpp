@@ -115,6 +115,55 @@ std::unique_ptr<ExprAST> ParseIfExpr(FILE* InputFile) {
     return std::make_unique<IfExprAST>(std::move(Cond), std::move(Then), std::move(Else));
 }
 
+
+/// forexpr
+///   ::= 'for' identifier '=' expr ',' expr (',' expr)? 'in' expr
+std::unique_ptr<ExprAST> ParseForExpr(FILE* InputFile) {
+    // TODO: i should fix the error messages, adesso non ho voglia
+
+    getNextToken(InputFile);  // eat the for.
+
+    if (CurTok != tok_identifier)
+        return LogError("expected identifier after for");
+
+    std::string IdName = IdentifierStr;
+    getNextToken(InputFile);  // eat identifier.
+
+    if (CurTok != '=')
+        return LogError("expected '=' after for");
+    getNextToken(InputFile);  // eat '='.
+
+    auto Start = ParseExpression(InputFile);
+    if (!Start)
+        return nullptr;
+    if (CurTok != ',')
+        return LogError("expected ',' after for start value");
+    getNextToken(InputFile); // eat first ','
+
+    auto End = ParseExpression(InputFile);
+    if (!End)
+        return nullptr;
+
+    // The step value is optional.
+    std::unique_ptr<ExprAST> Step;
+    if (CurTok == ',') {
+        getNextToken(InputFile); // eat second ','
+        Step = ParseExpression(InputFile);
+        if (!Step)
+            return nullptr;
+    }
+
+    if (CurTok != tok_in)
+        return LogError("expected 'in' after for");
+    getNextToken(InputFile);  // eat 'in'.
+
+    auto Body = ParseExpression(InputFile);
+    if (!Body)
+        return nullptr;
+
+    return std::make_unique<ForExprAST>(IdName, std::move(Start), std::move(End), std::move(Step), std::move(Body));
+}
+
 /// primary
 ///   ::= identifierexpr
 ///   ::= numberexpr
@@ -132,6 +181,8 @@ std::unique_ptr<ExprAST> ParsePrimary(FILE* InputFile) {
         return ParseParenExpr(InputFile);
     case tok_if:
         return ParseIfExpr(InputFile);
+    case tok_for:
+        return ParseForExpr(InputFile);
     }
 }
 

@@ -252,6 +252,99 @@ Value* IfExprAST::codegen() const {
     return PN;
 }
 
+
+// ForExprAST
+std::string ForExprAST::ToString() const {
+    std::string res {};
+
+    // TODO: non sto gestendo il fatto che lo Step è opzionale
+    res += "for " + Start->ToString() + ", " + End->ToString() + ", " + Step->ToString() + " in\n\t";
+    res += Body->ToString() + "\n";
+
+    return res;
+}
+
+Value* ForExprAST::codegen() const {
+    // Emit the Start exp first, without the loop variable in scope.
+    // (Start è solo l'espressione a destra dell'uguale)
+    Value *StartVal = Start->codegen();
+    if (!StartVal)
+        return LogErrorV("ForExprAST::codegen() | couldn't codegen the start expression");
+
+    // Because we will need it to create the Phi node, we remember the block that falls through into the loop.
+    BasicBlock *PreheaderBB = Builder->GetInsertBlock();
+    // Make the new basic block for the loop header, inserting after current block.
+    Function *TheFunction = Builder->GetInsertBlock()->getParent();
+    BasicBlock *LoopBB = BasicBlock::Create(*TheContext, "loop", TheFunction); //append a basic block to TheFunction
+    // Insert an explicit fall through from the current block to the LoopBB.
+    Builder->CreateBr(LoopBB);
+
+    // Start insertion in LoopBB.
+    Builder->SetInsertPoint(LoopBB);
+
+    // Start the PHI node for the loop induction variable with an entry for the Start expression.
+    PHINode *Variable = Builder->CreatePHI(Type::getDoubleTy(*TheContext), 2, VarName);
+    Variable->addIncoming(StartVal, PreheaderBB);
+
+    // Within the loop, the variable is defined equal to the PHI node.  If it
+    // shadows an existing variable, we have to restore it, so save it now.
+    Value *OldVal = NamedValues[VarName]; // can be null if there is no outer shadowed variable
+    NamedValues[VarName] = Variable; // registro la loop-induction variable nello scope
+
+    // Emit the body of the loop. This, like any other expr, can change the
+    // current BB (nested fors/ifs).
+    // Note that we ignore the value computed by the body (the loop returns
+    // zero), but don't allow an error.
+    // Also, note that, the body can use the loop induction variable because
+    // we've installed it above.
+    if (!Body->codegen())
+        return LogErrorV("ForExprAST::codegen() | couldn't codegen the body of the loop");
+
+    // Emit the step value.
+    Value *StepVal = nullptr;
+    if (Step) {
+        StepVal = Step->codegen();
+        if (!StepVal)
+            return LogErrorV("ForExprAST::codegen() | couldn't codegen the step expression");
+    } else {
+        // If not specified, use 1.0.
+        StepVal = ConstantFP::get(*TheContext, APFloat(1.0));
+    }
+
+    // Emit the increment of the loop induction variable
+    Value *NextVar = Builder->CreateFAdd(Variable, StepVal, "nextvar");
+
+    // FIXME: this is wrong, the loop condition gets evaluated after the body
+    // this means that the loop executes always at least one time and always
+    // una volta di troppo
+    // Emit the end condition.
+    Value *EndCond = End->codegen();
+    if (!EndCond)
+        return LogErrorV("ForExprAST::codegen() | couldn't codegen the end condition");
+    // Convert condition to a bool by comparing non-equal to 0.0.
+    EndCond = Builder->CreateFCmpONE( EndCond, ConstantFP::get(*TheContext, APFloat(0.0)), "loopcond");
+
+    // Create the "after loop" block and insert it.
+    BasicBlock *LoopEndBB = Builder->GetInsertBlock(); // remember this for the phi node
+    BasicBlock *AfterBB = BasicBlock::Create(*TheContext, "afterloop", TheFunction);
+    // Insert the conditional branch into the end of LoopEndBB.
+    Builder->CreateCondBr(EndCond, LoopBB, AfterBB);
+    // Any new code will be inserted in AfterBB.
+    Builder->SetInsertPoint(AfterBB);
+
+    // Add a new entry to the PHI node for the backedge.
+    Variable->addIncoming(NextVar, LoopEndBB);
+
+    // Restore the unshadowed variable.
+    if (OldVal)
+        NamedValues[VarName] = OldVal;
+    else
+        NamedValues.erase(VarName);
+
+    // for expr always returns 0.0.
+    return Constant::getNullValue(Type::getDoubleTy(*TheContext));
+}
+
 // PrototypeAST
 std::string PrototypeAST::ToString() const {
     std::string res {};
