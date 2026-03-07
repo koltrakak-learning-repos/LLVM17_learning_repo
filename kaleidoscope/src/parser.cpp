@@ -85,11 +85,41 @@ std::unique_ptr<ExprAST> ParseIdentifierExpr(FILE* InputFile) {
     return std::make_unique<CallExprAST>(IdName, std::move(Args));
 }
 
+/// ifexpr
+///   ::= 'if' expression 'then' expression 'else' expression
+std::unique_ptr<ExprAST> ParseIfExpr(FILE* InputFile) {
+    getNextToken(InputFile);  // eat the if.
+
+    // condition.
+    auto Cond = ParseExpression(InputFile);
+    if (!Cond)
+        return LogError("ParseIfExpr | couldn't parse the if condition expression");
+
+    if (CurTok != tok_then)
+        return LogError("ParseIfExpr | expected 'then'");
+    getNextToken(InputFile);  // eat the then
+
+    auto Then = ParseExpression(InputFile);
+    if (!Then)
+        return LogError("ParseIfExpr | couldn't parse the then expression");
+
+    if (CurTok != tok_else)
+        return LogError("ParseIfExpr | expected 'else'");
+
+    getNextToken(InputFile);
+
+    auto Else = ParseExpression(InputFile);
+    if (!Else)
+        return LogError("ParseIfExpr | couldn't parse the else expression");
+
+    return std::make_unique<IfExprAST>(std::move(Cond), std::move(Then), std::move(Else));
+}
 
 /// primary
 ///   ::= identifierexpr
 ///   ::= numberexpr
 ///   ::= parenexpr
+///   ::= ifexpr
 std::unique_ptr<ExprAST> ParsePrimary(FILE* InputFile) {
     switch (CurTok) {
     default:
@@ -100,6 +130,8 @@ std::unique_ptr<ExprAST> ParsePrimary(FILE* InputFile) {
         return ParseNumberExpr(InputFile);
     case '(':
         return ParseParenExpr(InputFile);
+    case tok_if:
+        return ParseIfExpr(InputFile);
     }
 }
 
@@ -200,14 +232,16 @@ std::unique_ptr<FunctionAST> ParseDefinition(FILE* InputFile) {
     getNextToken(InputFile);  // eat def.
 
     auto Proto = ParsePrototype(InputFile);
-    if (!Proto)
-        // TODO: should probably log something (helper functions incompatible with FunctionAST)
+    if (!Proto) {
+        std::cout << "ParseDefinition | couldn't parse the function prototype\n";
         return nullptr;
+    }
 
     auto Expr = ParseExpression(InputFile);
-    if (!Expr)
-        // TODO: should probably log something (helper functions incompatible with FunctionAST)
+    if (!Expr) {
+        std::cout << "ParseDefinition | couldn't parse the function body\n";
         return nullptr;
+    }
 
     return std::make_unique<FunctionAST>(std::move(Proto), std::move(Expr));
 }
@@ -228,6 +262,6 @@ std::unique_ptr<FunctionAST> ParseTopLevelExpr(FILE* InputFile) {
         return std::make_unique<FunctionAST>(std::move(Proto), std::move(E));
     }
 
-    // TODO: should probably log something (helper functions incompatible with FunctionAST)
+    std::cout << "ParseTopLevelExpr | couldn't parse the expression\n";
     return nullptr;
 }

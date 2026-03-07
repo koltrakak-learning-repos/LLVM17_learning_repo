@@ -77,6 +77,21 @@ public:
     Value* codegen() const override;
 };
 
+/// IfExprAST - Expression class for if/then/else.
+class IfExprAST : public ExprAST {
+private:
+    std::unique_ptr<ExprAST> Cond;
+    std::unique_ptr<ExprAST> Then;
+    std::unique_ptr<ExprAST> Else;
+
+public:
+    IfExprAST(std::unique_ptr<ExprAST> Cond, std::unique_ptr<ExprAST> Then, std::unique_ptr<ExprAST> Else)
+        : Cond(std::move(Cond)), Then(std::move(Then)), Else(std::move(Else)) {}
+
+    std::string ToString() const override;
+    Value* codegen() const override;
+};
+
 /// PrototypeAST - This class represents the "prototype" for a function, which captures
 /// its name, and its argument names (thus the number of arguments the function takes).
 /// In Kaleidoscope, functions are typed with just a count of their arguments since all

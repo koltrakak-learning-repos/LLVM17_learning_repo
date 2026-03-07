@@ -13,7 +13,7 @@ SRC_FILES := \
 MAIN := $(SRC_DIR)/main.cpp
 
 TARGET := $(BUILD_DIR)/kaleidoscope.out
-INPUT_PROGRAM := $(KAL_SRC_DIR)/test_codegen.kal
+INPUT_PROGRAM := $(KAL_SRC_DIR)/fibonacci.kal
 LLVM_FLAGS := $(shell llvm-config --cxxflags --ldflags --system-libs --libs core orcjit native)
 FLAGS := -fuse-ld=mold -rdynamic -I$(INCLUDE_DIR)
 

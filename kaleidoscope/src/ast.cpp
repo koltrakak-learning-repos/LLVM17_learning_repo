@@ -174,6 +174,84 @@ Value* CallExprAST::codegen() const {
     return Builder->CreateCall(CalleeF, ArgsV, "calltmp");
 }
 
+// IfExprAST
+std::string IfExprAST::ToString() const {
+    std::string res {};
+
+    res += "if " + Cond->ToString() + " then\n\t";
+    res += Then->ToString() + "\nelse\n\t";
+    res += Else->ToString() + "\n";
+
+    return res;
+}
+
+Value* IfExprAST::codegen() const {
+    Value *CondV = Cond->codegen();
+    if (!CondV)
+        return LogErrorV("IfExprAST::codegen() | couldn't codegen the condition");
+
+    // Convert condition to a bool by comparing non-equal (ONE == Ordered and Not Equal) to 0.0.
+    CondV = Builder->CreateFCmpONE(CondV, ConstantFP::get(*TheContext, APFloat(0.0)), "ifcond");
+
+    // This gets the current Function object that is being built.
+    // - asks the builder for the current BasicBlock
+    // - and asks that block for its “parent”
+    //    - (the function it is currently embedded into).
+    //
+    // Remember that an if/else is always codegened inside a function
+    // body (maybe __anon_expr).This means that we're already inside
+    // the BB of that function (created in FunctionAST::codegen).
+    // TheBuilder saves this state and also records where the current
+    // insertion point for the IR is.
+    // NB: actually, we might also be inside a then/else BB if we have
+    // nested ifs.
+    Function *TheFunction = Builder->GetInsertBlock()->getParent();
+    // Create blocks for the then and else cases. Insert the 'then' block
+    // at the (current) end of the function. The other two blocks are
+    // created, but aren’t yet inserted into the function.
+    BasicBlock *ThenBB = BasicBlock::Create(*TheContext, "then", TheFunction);
+    BasicBlock *ElseBB = BasicBlock::Create(*TheContext, "else");
+    BasicBlock *MergeBB = BasicBlock::Create(*TheContext, "ifcont");
+    // Emit the conditional branch
+    Builder->CreateCondBr(CondV, ThenBB, ElseBB);
+
+    // Emit then block.
+    Builder->SetInsertPoint(ThenBB);
+    Value *ThenV = Then->codegen();
+    if (!ThenV)
+        return LogErrorV("IfExprAST::codegen() | couldn't codegen the then block");
+    // Emit the jump to the merge block
+    Builder->CreateBr(MergeBB);
+    // Codegen of 'Then' can change the current block, update ThenBB to be the
+    // current block we're inserting into, this is the right source for the PHI.
+    ThenBB = Builder->GetInsertBlock(); // gets the inserting-into current block
+
+    // Emit else block.
+    // il then block era già in fondo; con l'else devo aggiungerlo io
+    TheFunction->insert(TheFunction->end(), ElseBB);
+    Builder->SetInsertPoint(ElseBB);
+    Value *ElseV = Else->codegen();
+    if (!ElseV)
+        return LogErrorV("IfExprAST::codegen() | couldn't codegen the else block");
+    // Emite the jump to the merge block
+    Builder->CreateBr(MergeBB);
+    // codegen of 'Else' can change the current block, update ElseBB for the PHI.
+    ElseBB = Builder->GetInsertBlock();
+
+    // Emit merge block.
+    TheFunction->insert(TheFunction->end(), MergeBB);
+    Builder->SetInsertPoint(MergeBB);
+    PHINode *PN = Builder->CreatePHI(Type::getDoubleTy(*TheContext), 2, "iftmp");
+    // setup the source block/value pairs of the phi operation
+    PN->addIncoming(ThenV, ThenBB);
+    PN->addIncoming(ElseV, ElseBB);
+
+    // Return the phi node as the value computed by the if/then/else expression.
+    // This means that if the condition was true we return the then value, otherwise
+    // the we return the else value.
+    return PN;
+}
+
 // PrototypeAST
 std::string PrototypeAST::ToString() const {
     std::string res {};
@@ -253,7 +331,7 @@ Function* FunctionAST::codegen() {
     // they incorrectly typed in before; if we didn’t delete it, it would live in the symbol
     // table of TheModule, with a body, preventing future redefinition.
     TheFunction->eraseFromParent();
-    return nullptr;
+    return (Function*)LogErrorV("FunctionAST::codegen() | Function body could not be codegened.");
 }
 
 

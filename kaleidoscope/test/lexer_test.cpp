@@ -29,6 +29,18 @@ int main(int argc, char** argv) {
                 std::cout << "extern\t - keyword\n";
                 break;
 
+            case tok_if:
+                std::cout << "if\t - keyword\n";
+                break;
+
+            case tok_then:
+                std::cout << "then\t - keyword\n";
+                break;
+
+            case tok_else:
+                std::cout << "else\t - keyword\n";
+                break;
+
             case tok_identifier:
                 std::cout << IdentifierStr << "\t - identifier\n";
                 break;
