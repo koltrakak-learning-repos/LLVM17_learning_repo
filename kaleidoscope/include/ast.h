@@ -3,11 +3,17 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <cassert>
+#include <map>
 
 #include <llvm/IR/Value.h>
 #include <llvm/IR/Function.h>
 
 using namespace llvm;
+
+
+/// This holds the precedence for each binary operator that is defined.
+extern std::map<char, int> BinopPrecedence;
 
 /// ExprAST - Base class for all expression nodes.
 class ExprAST
@@ -42,6 +48,20 @@ private:
 
 public:
     VariableExprAST(const std::string &Name) : Name(Name) {}
+
+    std::string ToString() const override;
+    Value* codegen() const override;
+};
+
+/// UnaryExprAST - Expression class for a unary operator.
+class UnaryExprAST : public ExprAST {
+private:
+    char Opcode;
+    std::unique_ptr<ExprAST> Operand;
+
+public:
+    UnaryExprAST(char Opcode, std::unique_ptr<ExprAST> Operand)
+        : Opcode(Opcode), Operand(std::move(Operand)) {}
 
     std::string ToString() const override;
     Value* codegen() const override;
@@ -113,20 +133,33 @@ public:
 };
 
 /// PrototypeAST - This class represents the "prototype" for a function, which captures
-/// its name, and its argument names (thus the number of arguments the function takes).
-/// In Kaleidoscope, functions are typed with just a count of their arguments since all
-/// values are doubles.
+/// its name, and its argument names (thus the number of arguments the function takes),
+/// as well as if its an operator.
+/// In Kaleidoscope, functions are typed with just a count of their arguments since
+/// the only supported data type is double.
 class PrototypeAST
 {
 private:
     std::string Name;
     std::vector<std::string> Args;
+    bool IsOperator;
+    unsigned Precedence;  // Precedence is used only if a binary op.
 
 public:
-    PrototypeAST(const std::string &Name, std::vector<std::string> Args)
-        : Name(Name), Args(std::move(Args)) {}
+    PrototypeAST(const std::string &Name, std::vector<std::string> Args, bool IsOperator = false, unsigned Prec = 0)
+        : Name(Name), Args(std::move(Args)), IsOperator(IsOperator), Precedence(Prec) {}
 
     const std::string &getName() const { return Name; }
+
+    bool isUnaryOp() const { return IsOperator && Args.size() == 1; }
+    bool isBinaryOp() const { return IsOperator && Args.size() == 2; }
+
+    char getOperatorName() const {
+        assert(isUnaryOp() || isBinaryOp());
+        return Name[Name.size() - 1];
+    }
+    unsigned getBinaryPrecedence() const { return Precedence; }
+
     std::string ToString() const;
     Function* codegen() const;
 };

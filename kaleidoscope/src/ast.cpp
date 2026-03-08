@@ -3,6 +3,7 @@
 #include <map>
 #include <algorithm>
 #include <utility> // for std::move()
+#include <cassert>
 
 #include <llvm/ADT/APFloat.h>
 #include <llvm/ADT/STLExtras.h>
@@ -37,6 +38,16 @@ extern std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
 // global state defined in main used for optimization
 extern std::unique_ptr<FunctionPassManager> TheFPM;
 extern std::unique_ptr<FunctionAnalysisManager> TheFAM;
+
+
+/// This holds the precedence for each binary operator that is defined.
+// 1 is lowest precedence.
+std::map<char, int> BinopPrecedence = {
+    {'<', 10},
+    {'+', 20},
+    {'-', 20},
+    {'*', 40},
+};
 
 
 // Helper that replaces calls to TheModule->getFunction(). Searches TheModule for an
@@ -91,6 +102,23 @@ Value* VariableExprAST::codegen() const {
     return V;
 }
 
+// UnaryExprAST
+std::string UnaryExprAST::ToString() const {
+    return Opcode + Operand->ToString();
+}
+
+Value *UnaryExprAST::codegen() const {
+    Value *OperandV = Operand->codegen();
+    if (!OperandV)
+        return LogErrorV("UnaryExprAST::codegen() | couldn't codegen the unary operand");
+
+    Function *F = getFunction(std::string("unary") + Opcode);
+    if (!F)
+        return LogErrorV("UnaryExprAST::codegen() | Unknown unary operator");
+
+    return Builder->CreateCall(F, OperandV, "unop");
+}
+
 // BinaryExprAST
 std::string BinaryExprAST::ToString() const {
     std::string LeftString = LHS->ToString();
@@ -128,8 +156,16 @@ Value* BinaryExprAST::codegen() const {
         // Convert bool 0/1 to double 0.0 or 1.0
         return Builder->CreateUIToFP(L, Type::getDoubleTy(*TheContext), "booltmp");
     default:
-        return LogErrorV("BinaryExprAST::codegen() | invalid binary operator");
+        // return LogErrorV("BinaryExprAST::codegen() | invalid binary operator");
+        break;
     }
+
+    // If it wasn't a builtin binary operator, it must be a user defined one.
+    // Emit a call to it.
+    Function* F = getFunction(std::string("binary") + Op);
+    assert(F && "BinaryExprAST::codegen() | binary operator not found!");
+    Value* Ops[2] = { L, R };
+    return Builder->CreateCall(F, Ops, "binop");
 }
 
 // CallExprAST
@@ -392,11 +428,15 @@ Function* FunctionAST::codegen() {
     // First, check for an existing function from a previous 'extern' declaration
     // inside any module symbol table. Se non c'è, generiamo il prototipo nel current
     // module (grazie a getFunction()).
-    auto FuncName = Proto->getName();
+    auto &P = *Proto;
     FunctionProtos[Proto->getName()] = std::move(Proto);
-    Function *TheFunction = getFunction(FuncName);
+    Function *TheFunction = getFunction(P.getName());
     if (!TheFunction)
         return (Function*)LogErrorV("FunctionAST::codegen() | Function prototype could not be codegened.");
+
+    // If this is an operator, install it.
+    if (P.isBinaryOp())
+        BinopPrecedence[P.getOperatorName()] = P.getBinaryPrecedence();
 
     // Create a new basic block to start insertion into.
     BasicBlock *BB = BasicBlock::Create(*TheContext, "entry", TheFunction);

@@ -55,8 +55,13 @@ std::unique_ptr<ExprAST> ParsePrimary(FILE* InputFile);
 /// sequence of [binop, primaryexpr] pairs
 ///
 /// expression
-///   ::= primary binoprhs
+///   ::= unary binoprhs
 std::unique_ptr<ExprAST> ParseExpression(FILE* InputFile);
+
+/// unary
+///   ::= primary
+///   ::= '!' unary
+std::unique_ptr<ExprAST> ParseUnary(FILE* InputFile);
 
 /// ParseBinOpRHS is the function that parses the sequence of pairs.
 /// It takes a precedence and a pointer to an expression for the part
@@ -72,7 +77,7 @@ std::unique_ptr<ExprAST> ParseExpression(FILE* InputFile);
 /// the rhs of the current lower-precedence operator).
 ///
 /// binoprhs
-///   ::= ('+' primary)*
+///   ::= ('+' unary)*
 std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec, std::unique_ptr<ExprAST> LHS, FILE* InputFile);
 
 /// used both for ‘extern’ function declarations as well as function
@@ -80,6 +85,8 @@ std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec, std::unique_ptr<ExprAST> LH
 ///
 /// prototype
 ///   ::= id '(' id* ')'
+///   ::= binary LETTER number? (id, id)
+///   ::= unary LETTER (id)
 std::unique_ptr<PrototypeAST> ParsePrototype(FILE* InputFile);
 
 /// definition

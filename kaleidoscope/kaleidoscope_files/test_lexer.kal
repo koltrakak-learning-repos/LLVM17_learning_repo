@@ -10,3 +10,14 @@ def printstar(n)
 
 # print 100 '*' characters
 printstar(100);
+
+# Logical unary not.
+def unary!(v)
+  if v then
+    0
+  else
+    1;
+
+# Define > with the same precedence as <.
+def binary> 10 (LHS RHS)
+  RHS < LHS;

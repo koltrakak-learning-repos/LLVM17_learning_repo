@@ -47,6 +47,13 @@ int main(int argc, char** argv) {
 
             case tok_in:
                 std::cout << "in\t - keyword\n";
+
+            case tok_binary:
+                std::cout << "binary\t - keyword\n";
+                break;
+
+            case tok_unary:
+                std::cout << "unary\t - keyword\n";
                 break;
 
             case tok_identifier:
