@@ -49,6 +49,7 @@ private:
 public:
     VariableExprAST(const std::string &Name) : Name(Name) {}
 
+    const std::string& getName() const { return Name; }
     std::string ToString() const override;
     Value* codegen() const override;
 };
@@ -127,6 +128,31 @@ public:
                 std::unique_ptr<ExprAST> Body)
         : VarName(VarName), Start(std::move(Start)), End(std::move(End)),
         Step(std::move(Step)), Body(std::move(Body)) {}
+
+    std::string ToString() const override;
+    Value *codegen() const override;
+};
+
+/// VarExprAST - Expression class for var/in
+/// var/in allows a list of names to be defined all at once, and each
+/// name can optionally have an initializer value. Also, var/in has a
+/// body, this body is allowed to access the variables defined by the
+/// var/in.
+///
+/// var a = 1, b = 1, c in
+/// (for i = 3, i < x in
+///     c = a + b :
+///     a = b :
+///     b = c) :
+/// b;
+class VarExprAST : public ExprAST {
+private:
+    std::vector<std::pair<std::string, std::unique_ptr<ExprAST>>> VarNames;
+    std::unique_ptr<ExprAST> Body;
+
+public:
+    VarExprAST(std::vector<std::pair<std::string, std::unique_ptr<ExprAST>>> VarNames, std::unique_ptr<ExprAST> Body)
+        : VarNames(std::move(VarNames)), Body(std::move(Body)) {}
 
     std::string ToString() const override;
     Value *codegen() const override;

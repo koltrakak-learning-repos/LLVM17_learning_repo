@@ -24,6 +24,7 @@
 #include <llvm/Transforms/Scalar/GVN.h>
 #include <llvm/Transforms/Scalar/Reassociate.h>
 #include <llvm/Transforms/Scalar/SimplifyCFG.h>
+#include "llvm/Transforms/Utils/Mem2Reg.h"
 
 using namespace llvm;
 using namespace llvm::orc;
@@ -37,7 +38,7 @@ enum class Mode {
 std::unique_ptr<LLVMContext> TheContext;
 std::unique_ptr<Module> TheModule;
 std::unique_ptr<IRBuilder<>> Builder;
-std::map<std::string, Value*> NamedValues;
+// std::map<std::string, AllocaInst*> NamedValues;
 
 // This JIT's API are very simple:
 // - addModule() adds an LLVM IR module to the JIT, making its functions
@@ -117,6 +118,12 @@ void InitializeModuleAndManagers() {
     TheFPM->addPass(GVNPass());
     // Simplify the control flow graph (deleting unreachable blocks, etc).
     TheFPM->addPass(SimplifyCFGPass());
+    // Promote allocas to registers.
+    TheFPM->addPass(PromotePass());
+    // Do simple "peephole" optimizations and bit-twiddling optzns.
+    TheFPM->addPass(InstCombinePass());
+    // Reassociate expressions.
+    TheFPM->addPass(ReassociatePass());
 
     // Register analysis passes used in these transform passes.
     PassBuilder PB;

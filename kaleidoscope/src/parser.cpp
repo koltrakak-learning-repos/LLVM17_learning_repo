@@ -157,11 +157,61 @@ std::unique_ptr<ExprAST> ParseForExpr(FILE* InputFile) {
     return std::make_unique<ForExprAST>(IdName, std::move(Start), std::move(End), std::move(Step), std::move(Body));
 }
 
+
+/// varexpr
+///   ::= 'var' identifier ('=' expression)?(',' identifier ('=' expression)?)* 'in' expression
+std::unique_ptr<ExprAST> ParseVarExpr(FILE* InputFile) {
+    getNextToken(InputFile);  // eat the var.
+    // At least one variable name is required.
+    if (CurTok != tok_identifier)
+        return LogError("ParseVarExpr | expected identifier after var");
+
+    // parse the list of identifier/expr pairs
+    std::vector<std::pair<std::string, std::unique_ptr<ExprAST>>> VarNames;
+    while (true) {
+        std::string Name = IdentifierStr;
+        getNextToken(InputFile);  // eat identifier.
+
+        // Read the optional initializer.
+        std::unique_ptr<ExprAST> Init;
+        if (CurTok == '=') {
+            getNextToken(InputFile); // eat the '='.
+
+            Init = ParseExpression(InputFile);
+            if (!Init)
+                return LogError("ParseVarExpr | couldn't parse the initilizer expression");
+        }
+
+        VarNames.push_back(std::make_pair(Name, std::move(Init)));
+
+        // End of var list, exit loop.
+        if (CurTok != ',')
+            break;
+        getNextToken(InputFile); // eat the ','.
+
+        if (CurTok != tok_identifier)
+            return LogError("ParseVarExpr | expected identifier list after var");
+    }
+
+    // At this point, we have to have 'in'.
+    if (CurTok != tok_in)
+        return LogError("ParseVarExpr | expected 'in' keyword after 'var'");
+    getNextToken(InputFile);  // eat 'in'.
+
+    auto Body = ParseExpression(InputFile);
+    if (!Body)
+        return LogError("ParseVarExpr | couldn't parse the body of the var/in construct");
+
+    return std::make_unique<VarExprAST>(std::move(VarNames), std::move(Body));
+}
+
 /// primary
 ///   ::= identifierexpr
 ///   ::= numberexpr
 ///   ::= parenexpr
 ///   ::= ifexpr
+///   ::= forexpr
+///   ::= varexpr
 std::unique_ptr<ExprAST> ParsePrimary(FILE* InputFile) {
     switch (CurTok) {
     default:
@@ -176,6 +226,8 @@ std::unique_ptr<ExprAST> ParsePrimary(FILE* InputFile) {
         return ParseIfExpr(InputFile);
     case tok_for:
         return ParseForExpr(InputFile);
+    case tok_var:
+        return ParseVarExpr(InputFile);
     }
 }
 

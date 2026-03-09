@@ -39,6 +39,9 @@ std::unique_ptr<ExprAST> ParseIfExpr(FILE* InputFile);
 ///   ::= 'for' identifier '=' expr ',' expr (',' expr)? 'in' expr
 std::unique_ptr<ExprAST> ParseForExpr(FILE* InputFile);
 
+/// varexpr
+///   ::= 'var' identifier ('=' expression)?(',' identifier ('=' expression)?)* 'in' expression
+std::unique_ptr<ExprAST> ParseVarExpr(FILE* InputFile);
 
 /// Helper function that parses a "primary expression", that is an
 /// expression that can be one of the operands of a binary operator
@@ -48,6 +51,8 @@ std::unique_ptr<ExprAST> ParseForExpr(FILE* InputFile);
 ///   ::= numberexpr
 ///   ::= parenexpr
 ///   ::= ifexpr
+///   ::= forexpr
+///   ::= varexpr
 std::unique_ptr<ExprAST> ParsePrimary(FILE* InputFile);
 
 

@@ -28,6 +28,9 @@ enum Token {
     // operators
     tok_binary = -11,
     tok_unary = -12,
+
+    // var definition
+    tok_var = -13
 };
 
 /// CurTok/getNextToken - Provide a simple token buffer.  CurTok is the current

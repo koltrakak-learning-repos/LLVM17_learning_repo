@@ -28,8 +28,6 @@ using namespace llvm::orc;
 extern std::unique_ptr<LLVMContext> TheContext;
 extern std::unique_ptr<Module> TheModule;
 extern std::unique_ptr<IRBuilder<>> Builder;
-// Map the holds what is in the current scope
-extern std::map<std::string, Value*> NamedValues;
 extern std::unique_ptr<KaleidoscopeJIT> TheJIT;
 
 // Map that holds the most recent prototype for each function.
@@ -43,12 +41,23 @@ extern std::unique_ptr<FunctionAnalysisManager> TheFAM;
 /// This holds the precedence for each binary operator that is defined.
 // 1 is lowest precedence.
 std::map<char, int> BinopPrecedence = {
+    {'=', 2},
     {'<', 10},
     {'+', 20},
     {'-', 20},
     {'*', 40},
 };
 
+
+// Map the holds what is in the current scope
+std::map<std::string, AllocaInst*> NamedValues;
+
+/// Create an alloca instruction in the entry block of the function.
+/// This is used for mutable variables etc.
+static AllocaInst *CreateEntryBlockAlloca(Function *TheFunction, StringRef VarName) {
+    IRBuilder<> TmpB(&TheFunction->getEntryBlock(), TheFunction->getEntryBlock().begin());
+    return TmpB.CreateAlloca(Type::getDoubleTy(*TheContext), nullptr, VarName);
+}
 
 // Helper that replaces calls to TheModule->getFunction(). Searches TheModule for an
 // existing function declaration, falling back to generating a new declaration from
@@ -96,10 +105,12 @@ std::string VariableExprAST::ToString() const {
 
 Value* VariableExprAST::codegen() const {
     // Look this variable up in the function.
-    Value *V = NamedValues[Name];
-    if (!V)
-        LogErrorV("VariableExprAST::codegen() | Unknown variable name");
-    return V;
+    AllocaInst *A = NamedValues[Name];
+    if (!A)
+        return LogErrorV("VariableExprAST::codegen() | Unknown variable name");
+
+    // Load the value from the stack.
+    return Builder->CreateLoad(A->getAllocatedType(), A, Name.c_str());
 }
 
 // UnaryExprAST
@@ -128,6 +139,31 @@ std::string BinaryExprAST::ToString() const {
 }
 
 Value* BinaryExprAST::codegen() const {
+    // Special case '=' because we don't want to emit the LHS as an expression.
+    if (Op == '=') {
+        // Assignment requires the LHS to be an identifier.
+        // (This assumes we're building without RunTime Type Information(RTTI)
+        // because LLVM builds that way by default. If you build LLVM with RTTI
+        // this can be changed to a dynamic_cast for automatic error checking)
+        VariableExprAST *LHSE = static_cast<VariableExprAST *>(LHS.get());
+        if (!LHSE)
+            return LogErrorV("BinaryExprAST::codegen() | destination of '=' must be a variable");
+
+        // Codegen the RHS.
+        Value *Val = RHS->codegen();
+        if (!Val)
+            return LogErrorV("BinaryExprAST::codegen() | couldn't codegen the RHS of the assignement");
+
+        // Look up the name.
+        Value *Variable = NamedValues[LHSE->getName()];
+        if (!Variable)
+            return LogErrorV("BinaryExprAST::codegen() | Unknown variable name");
+
+        Builder->CreateStore(Val, Variable);
+
+        return Val; // return a value for chained assignments
+    }
+
     Value *L = LHS->codegen();
     Value *R = RHS->codegen();
     if (!L || !R)
@@ -301,31 +337,30 @@ std::string ForExprAST::ToString() const {
 }
 
 Value* ForExprAST::codegen() const {
+    // Get the function of the current block we're building
+    Function *TheFunction = Builder->GetInsertBlock()->getParent();
+    // Create an alloca for the variable in the entry block.
+    AllocaInst *Alloca = CreateEntryBlockAlloca(TheFunction, VarName);
+
     // Emit the Start exp first, without the loop variable in scope.
     // (Start è solo l'espressione a destra dell'uguale)
     Value *StartVal = Start->codegen();
     if (!StartVal)
         return LogErrorV("ForExprAST::codegen() | couldn't codegen the start expression");
+    // Store the initial value into the alloca.
+    Builder->CreateStore(StartVal, Alloca);
 
-    // Because we will need it to create the Phi node, we remember the block that falls through into the loop.
-    BasicBlock *PreheaderBB = Builder->GetInsertBlock();
     // Make the new basic block for the loop header, inserting after current block.
-    Function *TheFunction = Builder->GetInsertBlock()->getParent();
     BasicBlock *LoopBB = BasicBlock::Create(*TheContext, "loop", TheFunction); //append a basic block to TheFunction
     // Insert an explicit fall through from the current block to the LoopBB.
     Builder->CreateBr(LoopBB);
-
     // Start insertion in LoopBB.
     Builder->SetInsertPoint(LoopBB);
 
-    // Start the PHI node for the loop induction variable with an entry for the Start expression.
-    PHINode *Variable = Builder->CreatePHI(Type::getDoubleTy(*TheContext), 2, VarName);
-    Variable->addIncoming(StartVal, PreheaderBB);
-
-    // Within the loop, the variable is defined equal to the PHI node.  If it
+    // Within the loop, the variable is defined equal to the alloca. If it
     // shadows an existing variable, we have to restore it, so save it now.
-    Value *OldVal = NamedValues[VarName]; // can be null if there is no outer shadowed variable
-    NamedValues[VarName] = Variable; // registro la loop-induction variable nello scope
+    AllocaInst* OldVal = NamedValues[VarName]; // can be null if there is no outer shadowed variable
+    NamedValues[VarName] = Alloca; // registro la loop-induction variable nello scope
 
     // Emit the body of the loop. This, like any other expr, can change the
     // current BB (nested fors/ifs).
@@ -347,9 +382,6 @@ Value* ForExprAST::codegen() const {
         StepVal = ConstantFP::get(*TheContext, APFloat(1.0));
     }
 
-    // Emit the increment of the loop induction variable
-    Value *NextVar = Builder->CreateFAdd(Variable, StepVal, "nextvar");
-
     // FIXME: this is wrong, the loop condition gets evaluated after the body
     // this means that the loop executes always at least one time and always
     // una volta di troppo
@@ -357,19 +389,22 @@ Value* ForExprAST::codegen() const {
     Value *EndCond = End->codegen();
     if (!EndCond)
         return LogErrorV("ForExprAST::codegen() | couldn't codegen the end condition");
+
+    // Reload, increment, and store the alloca. The reload is necessary
+    // because the body of the loop may mutate the variable.
+    Value *CurVar = Builder->CreateLoad(Alloca->getAllocatedType(), Alloca, VarName.c_str());
+    Value *NextVar = Builder->CreateFAdd(CurVar, StepVal, "nextvar");
+    Builder->CreateStore(NextVar, Alloca);
+
     // Convert condition to a bool by comparing non-equal to 0.0.
-    EndCond = Builder->CreateFCmpONE( EndCond, ConstantFP::get(*TheContext, APFloat(0.0)), "loopcond");
+    EndCond = Builder->CreateFCmpONE(EndCond, ConstantFP::get(*TheContext, APFloat(0.0)), "loopcond");
 
     // Create the "after loop" block and insert it.
-    BasicBlock *LoopEndBB = Builder->GetInsertBlock(); // remember this for the phi node
     BasicBlock *AfterBB = BasicBlock::Create(*TheContext, "afterloop", TheFunction);
     // Insert the conditional branch into the end of LoopEndBB.
     Builder->CreateCondBr(EndCond, LoopBB, AfterBB);
     // Any new code will be inserted in AfterBB.
     Builder->SetInsertPoint(AfterBB);
-
-    // Add a new entry to the PHI node for the backedge.
-    Variable->addIncoming(NextVar, LoopEndBB);
 
     // Restore the unshadowed variable.
     if (OldVal)
@@ -379,6 +414,59 @@ Value* ForExprAST::codegen() const {
 
     // for expr always returns 0.0.
     return Constant::getNullValue(Type::getDoubleTy(*TheContext));
+}
+
+// VarExprAST
+std::string VarExprAST::ToString() const {
+    // TODO: non ho voglia di implementarlo
+    return {};
+}
+
+Value* VarExprAST::codegen() const {
+    std::vector<AllocaInst *> OldBindings;
+
+    Function *TheFunction = Builder->GetInsertBlock()->getParent();
+
+    // Register all variables and emit their initializer.
+    for (unsigned i = 0, e = VarNames.size(); i != e; ++i) {
+        const std::string &VarName = VarNames[i].first;
+        ExprAST *Init = VarNames[i].second.get();
+
+        // Emit the initializer before adding the variable to scope, this prevents
+        // the initializer from referencing the variable itself, and permits stuff
+        // like this:
+        //  var a = 1 in
+        //    var a = a in ...   # refers to outer 'a'.
+        Value *InitVal;
+        if (Init) {
+            InitVal = Init->codegen();
+            if (!InitVal)
+                return LogErrorV("VarExprAST::codegen() | couldn't codegen a variable initializer");
+        } else {
+            // If not specified, use 0.0.
+            InitVal = ConstantFP::get(*TheContext, APFloat(0.0));
+        }
+
+        AllocaInst *Alloca = CreateEntryBlockAlloca(TheFunction, VarName);
+        Builder->CreateStore(InitVal, Alloca);
+        // Remember the old variable binding so that we can restore the binding when
+        // we unrecurse.
+        OldBindings.push_back(NamedValues[VarName]);
+        // Remember this binding.
+        NamedValues[VarName] = Alloca;
+    }
+
+    // Codegen the body, now that all vars are in scope.
+    Value *BodyVal = Body->codegen();
+    if (!BodyVal)
+        return LogErrorV("VarExprAST::codegen() | couldn't codegen the var/in body");
+
+    // Pop all our variables from scope.
+    for (unsigned i = 0, e = VarNames.size(); i != e; ++i)
+        NamedValues[VarNames[i].first] = OldBindings[i];
+
+    // Return the body computation.
+    return BodyVal;
 }
 
 // PrototypeAST
@@ -446,8 +534,14 @@ Function* FunctionAST::codegen() {
     // what's inside the function's scope. (the recorded arguments are accessed
     // by VariableExprAST::codegen())
     NamedValues.clear();
-    for (auto &Arg : TheFunction->args())
-        NamedValues[std::string(Arg.getName())] = &Arg;
+    for (auto &Arg : TheFunction->args()) {
+        // Create an alloca for this variable and store the initial value inside
+        // (this way we can mutate the function parameters)
+        AllocaInst *Alloca = CreateEntryBlockAlloca(TheFunction, Arg.getName());
+        Builder->CreateStore(&Arg, Alloca);
+        // register the alloca as the memory location for the argument
+        NamedValues[std::string(Arg.getName())] = Alloca;
+    }
 
     if (Value *RetVal = Body->codegen()) {
         // Finish off the function by inserting the return value.
@@ -464,6 +558,8 @@ Function* FunctionAST::codegen() {
     // they incorrectly typed in before; if we didn’t delete it, it would live in the symbol
     // table of TheModule, with a body, preventing future redefinition.
     TheFunction->eraseFromParent();
+    if (P.isBinaryOp())
+        BinopPrecedence.erase(P.getOperatorName());
     return (Function*)LogErrorV("FunctionAST::codegen() | Function body could not be codegened.");
 }
 
