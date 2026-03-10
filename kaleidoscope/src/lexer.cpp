@@ -2,12 +2,13 @@
 
 #include "lexer.h"
 
+// TODO: incapsula in una classe insieme al file di input
 /// CurTok/getNextToken - Provide a simple token buffer.  CurTok is the current
 /// token the parser is looking at.  getNextToken reads another token from the
 /// lexer and updates CurTok with its results.
 int CurTok;
 int getNextToken(FILE* InputFile) {
-  return CurTok = gettok(InputFile);
+    return CurTok = gettok(InputFile);
 }
 
 // If the current token is an identifier, the IdentifierStr global variable holds the name of the identifier.
@@ -33,6 +34,7 @@ int gettok(FILE* InputFile) {
         while ( isalnum(LastChar=fgetc(InputFile)) )
             IdentifierStr += LastChar;
 
+        // TODO: sostituisci con uno switch quando hai voglia
         // keyword
         if (IdentifierStr == "def")
             return tok_def;

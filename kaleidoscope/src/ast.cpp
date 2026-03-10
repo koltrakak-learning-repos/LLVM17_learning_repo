@@ -492,7 +492,7 @@ Function* PrototypeAST::codegen() const {
     std::vector<Type*> Doubles(Args.size(), Type::getDoubleTy(*TheContext));
     // create a function type that returns a double, accepts Args.size() doubles and that is not variadic
     FunctionType *FT = FunctionType::get(Type::getDoubleTy(*TheContext), Doubles, false);
-    // create the function and insert it into TheModule
+    // create the function and insert it into TheModule's symbol table
     Function *F = Function::Create(FT, Function::ExternalLinkage, Name, TheModule.get());
 
     // Set names for all arguments to make the IR more readable.
