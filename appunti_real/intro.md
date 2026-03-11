@@ -44,3 +44,54 @@ Espressioni loop-invariant non cambiano da iterazione a iterazione di un loop
 
 - non è necessario calcolarle ogni volta
 - posso portarle fuori facendo hoisting
+
+# Come è cambiato il ruolo dei compilatori?
+
+...
+
+Un compilatore può fare la magia del autoparallelizzare un programma?
+
+- la risposta breve è no
+- i compilatori aiutano dove ci sono loop e grandi strutture dati regolari (big tensors)
+- purtroppo questo copre solo una parte dei workload dei programmi
+
+Questo è la parte di autoparallelizzazione, ma i compilatori servono anche a definire dei **parallel programming models**
+
+- impossibile evitare di richiedere ai programmatori di specificare dove è richiesto parallelismo
+
+Tuttavia, i parallel programming models cercano di astrarre i dettagli di basso livello, offrono invece dei costrutti per esprimere il parallelismo di un programma
+
+- simile a come il C è comunque un linguaggio astratto che nasconde i dettagli dell'assembly
+- i parallel programming models implementati dai compilatori semplificano la vita dato che permettono di concentrarsi solo sulla parallelizzazione degli algoritmi
+
+...
+
+interessante **l'outlining fatto da OpenMP**
+
+- prende un pezzo di codice e lo mette in una funzione
+- opposto di inlining che espande una funzione
+- se devo parallelizzare un blocco, la maniera più facile è metterlo in una funzione e lanciare multipli thread su questa funzione
+
+**TAKEAWAY: supportare un programming model richiede sempre un compilatore**
+
+- devo tradurre le keyword e i concetti del programming model
+
+...
+
+Oltre a multicore, al giorno d'oggi il programming model deve gestire anche gli acceleratori
+
+- identifica pezzi del programma da mandare all'acceleratore
+- gestisce trasferimenti di memoria e indirizzi virtuali
+- ... casino che senza i compilatori, apriti cielo
+
+# Anatomia di un compilatore
+
+se scelgo una IR buona, con buona che significa il poter essere utilizzata per qualsiasi ottimizzazione, allora posso separare
+
+```
+chiedi meglio cosa significa IR buona
+```
+
+opt è il middle-end llvm
+
+llc è il back-end llvm
