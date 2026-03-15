@@ -1,5 +1,5 @@
 # Ignora tutto dentro build/
-build/*
+build/
 # NON ignorare il Makefile
 !build/Makefile
 
