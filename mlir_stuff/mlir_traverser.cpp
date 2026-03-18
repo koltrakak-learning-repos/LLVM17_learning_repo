@@ -89,6 +89,13 @@ struct TestPrintNestingPass
 
 void registerTestPrintNestingPass()
 {
+    // Qua sto istanziando un oggetto il cui costruttore chiama automaticamente mlir::registerPass()
+    // nel registro globale dei passi. Questo registro è una mappa nome → funzione factory che vive
+    // per tutta la durata del processo. Il nome usato è quello che hai definito nel tuo passo tramite
+    // il metodo getArgument().
+    // Inoltre, questo costrutture registra automaticamente un'opzione CLI con il nomde del passo.
+    // I passi registrati vanno anche invocati, e per farlo bisogna passare un flag. Nel caso del
+    // singolo passo, --pass-pipeline="test-print-nesting" e --test-print-nesting sono equivalenti
     mlir::PassRegistration<TestPrintNestingPass>();
 }
 
@@ -97,8 +104,6 @@ void registerTestPrintNestingPass()
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "mlir/InitAllDialects.h"
 
-void registerTestPrintNestingPass();
-
 int main(int argc, char **argv)
 {
     mlir::DialectRegistry registry;
@@ -106,5 +111,6 @@ int main(int argc, char **argv)
 
     registerTestPrintNestingPass();
 
+    // qua chiamiamo mlir opt
     return mlir::asMainReturnCode(mlir::MlirOptMain(argc, argv, "Test MLIR pass driver\n", registry));
 }
