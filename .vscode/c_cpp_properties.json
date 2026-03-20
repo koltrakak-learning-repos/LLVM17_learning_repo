@@ -1,0 +1,16 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/home/kevin/LLVM-19.1.7-Linux-X64/include"
+            ],
+            "defines": [],
+            "compilerPath": "/home/kevin/LLVM-19.1.7-Linux-X64/bin/clang",
+            "cStandard": "c17",
+            "intelliSenseMode": "linux-clang-x64"
+        }
+    ],
+    "version": 4
+}

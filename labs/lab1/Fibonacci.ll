@@ -12,13 +12,13 @@ target triple = "x86_64-unknown-linux-gnu"
 
 ; Function Attrs: nofree nounwind uwtable
 define dso_local noundef i32 @printf(ptr nocapture noundef readonly %0, ...) local_unnamed_addr #0 {
-  %2 = alloca [1 x %struct.__va_list_tag], align 16
-  call void @llvm.lifetime.start.p0(i64 24, ptr nonnull %2) #4
+  %2 = alloca [1 x %struct.__va_list_tag], align 16                                     ; alloca sullo stack va_list
+  call void @llvm.lifetime.start.p0(i64 24, ptr nonnull %2) #4                          ; chiamata a costrutture di va_list?
   call void @llvm.va_start.p0(ptr nonnull %2)
-  %3 = load ptr, ptr @stdout, align 8, !tbaa !5
+  %3 = load ptr, ptr @stdout, align 8, !tbaa !5                                         ; sta caricando "l'indirizzo" di stdout???
   %4 = call i32 @vfprintf(ptr noundef %3, ptr noundef %0, ptr noundef nonnull %2) #4
   call void @llvm.va_end.p0(ptr nonnull %2)
-  call void @llvm.lifetime.end.p0(i64 24, ptr nonnull %2) #4
+  call void @llvm.lifetime.end.p0(i64 24, ptr nonnull %2) #4                            ; chiamata al distruttore di va_list
   ret i32 %4
 }
 
@@ -45,8 +45,8 @@ define dso_local i32 @Fibonacci(i32 noundef %0) local_unnamed_addr #0 {
   %3 = phi i32 [ 0, %1 ], [ %10, %5 ]               ; %3 = 0 all'inizio, %10 se vengo da %5
   %4 = phi i32 [ %0, %1 ], [ %7, %5 ]               ; %4 = 0 all'inizio, %7 se vengo da %5
   switch i32 %4, label %5 [
-    i32 0, label %12
-    i32 1, label %11
+    i32 0, label %12                                ;
+    i32 1, label %11                                ;
   ]
 
 5:                                                ; preds = %2
