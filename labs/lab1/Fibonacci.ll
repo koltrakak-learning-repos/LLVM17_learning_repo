@@ -5,7 +5,7 @@ target triple = "x86_64-unknown-linux-gnu"
 
 %struct.__va_list_tag = type { i32, i32, ptr, ptr }
 
-@stdout = external local_unnamed_addr global ptr, align 8
+@stdout = external local_unnamed_addr global ptr, align 8                               ; ha tipo FILE*
 @.str = private unnamed_addr constant [9 x i8] c"f(0) = 0\00", align 1
 @.str.1 = private unnamed_addr constant [9 x i8] c"f(1) = 1\00", align 1
 @.str.2 = private unnamed_addr constant [22 x i8] c"f(%d) = f(%d) + f(%d)\00", align 1
@@ -14,10 +14,10 @@ target triple = "x86_64-unknown-linux-gnu"
 define dso_local noundef i32 @printf(ptr nocapture noundef readonly %0, ...) local_unnamed_addr #0 {
   %2 = alloca [1 x %struct.__va_list_tag], align 16                                     ; alloca sullo stack va_list
   call void @llvm.lifetime.start.p0(i64 24, ptr nonnull %2) #4                          ; chiamata a costrutture di va_list?
-  call void @llvm.va_start.p0(ptr nonnull %2)
-  %3 = load ptr, ptr @stdout, align 8, !tbaa !5                                         ; sta caricando "l'indirizzo" di stdout???
-  %4 = call i32 @vfprintf(ptr noundef %3, ptr noundef %0, ptr noundef nonnull %2) #4
-  call void @llvm.va_end.p0(ptr nonnull %2)
+  call void @llvm.va_start.p0(ptr nonnull %2)                                           ; chiamata a va_start
+  %3 = load ptr, ptr @stdout, align 8, !tbaa !5                                         ; carico stdout: carica un ptr (FILE*) da stdout
+  %4 = call i32 @vfprintf(ptr noundef %3, ptr noundef %0, ptr noundef nonnull %2) #4    ; chiama vprintf
+  call void @llvm.va_end.p0(ptr nonnull %2)                                             ; chiama va_end
   call void @llvm.lifetime.end.p0(i64 24, ptr nonnull %2) #4                            ; chiamata al distruttore di va_list
   ret i32 %4
 }
@@ -39,31 +39,32 @@ declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: nofree nounwind uwtable
 define dso_local i32 @Fibonacci(i32 noundef %0) local_unnamed_addr #0 {
-  br label %2                                       ; istruzione spuria? no, sembra che serva per il phi-node
+  br label %2                                       ; istruzione spuria? no, serve per il phi-node
 
 2:                                                ; preds = %5, %1
-  %3 = phi i32 [ 0, %1 ], [ %10, %5 ]               ; %3 = 0 all'inizio, %10 se vengo da %5
-  %4 = phi i32 [ %0, %1 ], [ %7, %5 ]               ; %4 = 0 all'inizio, %7 se vengo da %5
-  switch i32 %4, label %5 [
-    i32 0, label %12                                ;
-    i32 1, label %11                                ;
+  %3 = phi i32 [ 0, %1 ], [ %10, %5 ]               ; %3 = accumulatore = 0 all'inizio, quanto accumulato se vengo da %5
+  %4 = phi i32 [ %0, %1 ], [ %7, %5 ]               ; %4 = n all'inizio, %7 = n-2, se vengo da %5
+  switch i32 %4, label %5 [                         ; switch on %4, if no match goto %5 by deafault which computes
+    i32 0, label %12                                ; %4 == 0 -> caso base per n=0
+    i32 1, label %11                                ; %4 == 1 -> caso base per n=1
   ]
 
 5:                                                ; preds = %2
-  %6 = add nsw i32 %4, -1
-  %7 = add nsw i32 %4, -2
+  %6 = add nsw i32 %4, -1                           ; n-1
+  %7 = add nsw i32 %4, -2                           ; n-2
+  ; printf("f(%d) = ...", n, n-1, n-2)
   %8 = tail call i32 (ptr, ...) @printf(ptr noundef nonnull dereferenceable(1) @.str.2, i32 noundef %4, i32 noundef %6, i32 noundef %7)
-  %9 = tail call i32 @Fibonacci(i32 noundef %6)
-  %10 = add nsw i32 %9, %3
+  %9 = tail call i32 @Fibonacci(i32 noundef %6)     ; fibonacci(n-1)
+  %10 = add nsw i32 %9, %3                          ; %10 = fibonacci(n-1) + accumulatore
   br label %2
 
 11:                                               ; preds = %2
   br label %12
 
-12:                                               ; preds = %2, %11
-  %13 = phi ptr [ @.str.1, %11 ], [ @.str, %2 ]
-  %14 = tail call i32 (ptr, ...) @printf(ptr noundef nonnull dereferenceable(1) %13)
-  %15 = add nsw i32 %4, %3
+12: ; uno dei due if                              ; preds = %2, %11
+  %13 = phi ptr [ @.str.1, %11 ], [ @.str, %2 ]                                         ; %13 = "f(1)=1" oppure "f(0)=0" in base a da quale if provengo
+  %14 = tail call i32 (ptr, ...) @printf(ptr noundef nonnull dereferenceable(1) %13)    ; printf()
+  %15 = add nsw i32 %4, %3                                                              ; %15 = 0/1 in base a quale if sono
   ret i32 %15
 }
 

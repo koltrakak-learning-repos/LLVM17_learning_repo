@@ -7,11 +7,11 @@ target triple = "x86_64-unknown-linux-gnu"
 
 ; Function Attrs: noinline nounwind uwtable
 define dso_local i32 @g_incr(i32 noundef %0) #0 {
-  %2 = load i32, ptr @g, align 4
-  %3 = add nsw i32 %2, %0
-  store i32 %3, ptr @g, align 4
-  %4 = load i32, ptr @g, align 4
-  ret i32 %4
+  %2 = load i32, ptr @g, align 4    ; load g
+  %3 = add nsw i32 %2, %0           ; add c to g
+  store i32 %3, ptr @g, align 4     ; salva
+  %4 = load i32, ptr @g, align 4    ; ricarica
+  ret i32 %4                        ; restituisci
 }
 
 ; Function Attrs: noinline nounwind uwtable
@@ -19,21 +19,21 @@ define dso_local i32 @loop(i32 noundef %0, i32 noundef %1, i32 noundef %2) #0 {
   br label %4
 
 4:                                                ; preds = %8, %3
-  %.0 = phi i32 [ %0, %3 ], [ %9, %8 ]
-  %5 = icmp slt i32 %.0, %1
-  br i1 %5, label %6, label %10
+  %.0 = phi i32 [ %0, %3 ], [ %9, %8 ]              ; %.0 = i = a se vieni dall'inizio; loop induction variable
+  %5 = icmp slt i32 %.0, %1                         ; %5 = i < b
+  br i1 %5, label %6, label %10                     ; salta a loop body o post-loop
 
 6:                                                ; preds = %4
-  %7 = call i32 @g_incr(i32 noundef %2)
+  %7 = call i32 @g_incr(i32 noundef %2)             ; g_incr(c)
   br label %8
 
 8:                                                ; preds = %6
-  %9 = add nsw i32 %.0, 1
-  br label %4, !llvm.loop !6
+  %9 = add nsw i32 %.0, 1                           ; i++
+  br label %4, !llvm.loop !6                        ; prossima iterazione
 
 10:                                               ; preds = %4
-  %11 = load i32, ptr @g, align 4
-  %12 = add nsw i32 0, %11
+  %11 = load i32, ptr @g, align 4                   ; carica il valore di g
+  %12 = add nsw i32 0, %11                          ; ret += g
   ret i32 %12
 }
 
