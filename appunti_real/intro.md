@@ -45,6 +45,20 @@ Espressioni loop-invariant non cambiano da iterazione a iterazione di un loop
 - non è necessario calcolarle ogni volta
 - posso portarle fuori facendo hoisting
 
+# Classificazione delle ottimizzazioni
+
+local optimization work within a single basic block
+
+- don't need to care about control flow
+
+global optimization work with an entire function
+
+- need to care about control flow (hard)
+
+interprocedural optimization work with multiple functions
+
+local and global optimization are also called intraprocedural optimizations
+
 # Come è cambiato il ruolo dei compilatori?
 
 ...

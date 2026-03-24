@@ -56,5 +56,3 @@ A questo scopo abbiamo anche un **analysis manager** che si occupa di queste cos
 Analisys manager e pass manager (transform pass manager really) sono stati separati in modo da gestire in maniera efficiente le informazioni di analisi
 
 - se avessi un unico concetto generico di passo, ricalcolerei tante volte le analisi intasando il mio compile time di analisi ridondanti
-
-Quando abbiamo bisogno di un analisi faremo così:

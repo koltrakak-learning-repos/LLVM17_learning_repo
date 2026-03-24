@@ -33,7 +33,20 @@ pseudo-assembly per macchine astratte
 
 registri virtuali infiniti
 
-adatte ad ottimizzazione
+adatte ad ottimizzazione... come mai?
+
+**NB**: manipolare un AST è difficile dato che richiede costantemente di ragionare sul tipo del nodo corrente
+
+- nodi diversi hanno semantiche diverse e quindi non posso applicare in maniera cieca una trasformazione
+- inoltre la struttura ad albero rende difficile navigare il programma per applicare le trasformazioni
+  - dovrei navigare in orizzontale ad un stesso livello di profondità, scomodo
+    - pensa a CSE, posso riutilizzare un'espressione solo se uno dei suoi argomenti non è cambiato
+    - come faccio a capire se nel frattempo un argomento è cambiato con un albero?
+
+**NB**: una forma lineare è in sostanza una lunga lista di istruzioni
+
+- le istruzioni sono molto regolari: result + opcode + operandi
+- in questa forma diventa facile navigare il programma, e processarlo
 
 # Listone
 
