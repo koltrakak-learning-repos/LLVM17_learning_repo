@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(local-opts-pass)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # per clangd; configura con -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
 #===============================================================================
 # 1. LOAD LLVM CONFIGURATION
