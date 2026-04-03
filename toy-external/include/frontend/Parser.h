@@ -466,6 +466,8 @@ private:
       return 20;
     case '*':
       return 40;
+    case '@': // matmul
+      return 50;
     default:
       return -1;
     }

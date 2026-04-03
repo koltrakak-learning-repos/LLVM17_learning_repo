@@ -5,7 +5,7 @@ set(LIBS
     # MLIRRegisterAllDialects
     # MLIRRegisterAllPasses
     # # includiamo la libreria creata in lib/ con le sue dipendenze PUBLIC
-    # MLIRStandalone
+    MLIRToy
   )
 
 # version llvm di add_executable per aggiungere un executable target

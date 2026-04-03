@@ -106,8 +106,8 @@ add_definitions(${LLVM_DEFINITIONS})
 
 # importante importare prima include di lib dato che include contiene anche
 # i file .td che genereranno i file .cpp.inc utilizzati dentro lib/
-# add_subdirectory(include)
-# add_subdirectory(lib)
+add_subdirectory(include)
+add_subdirectory(lib)
 
 if(MLIR_ENABLE_BINDINGS_PYTHON)
   message(STATUS "Enabling Python API")
