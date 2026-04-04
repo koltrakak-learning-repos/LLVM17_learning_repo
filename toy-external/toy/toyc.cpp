@@ -12,6 +12,7 @@
 
 #include "frontend/AST.h"
 #include "frontend/Lexer.h"
+#include "frontend/MLIRGen.h"
 #include "frontend/Parser.h"
 #include "toy/ToyDialect.h"
 
@@ -24,7 +25,9 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/raw_ostream.h"
+
 #include <memory>
 #include <string>
 #include <system_error>
@@ -97,39 +100,39 @@ static int dumpMLIR() {
   // Load our Dialect in this MLIR Context.
   context.getOrLoadDialect<mlir::toy::ToyDialect>();
 
-  //   // Handle '.toy' input to the compiler.
-  //   if (inputType != InputType::MLIR &&
-  //       !llvm::StringRef(inputFilename).ends_with(".mlir")) {
-  //     auto moduleAST = parseInputFile(inputFilename);
-  //     if (!moduleAST)
-  //       return 6;
-  //     mlir::OwningOpRef<mlir::ModuleOp> module = mlirGen(context,
-  //     *moduleAST); if (!module)
-  //       return 1;
+  // Handle '.toy' input to the compiler.
+  if (inputType != InputType::MLIR &&
+      !llvm::StringRef(inputFilename).ends_with(".mlir")) {
+    auto moduleAST = parseInputFile(inputFilename);
+    if (!moduleAST)
+      return 6;
+    mlir::OwningOpRef<mlir::ModuleOp> module = mlirGen(context, *moduleAST);
+    if (!module)
+      return 1;
 
-  //     module->dump();
-  //     return 0;
-  //   }
+    module->dump();
+    return 0;
+  }
 
-  //   // Otherwise, the input is '.mlir'.
-  //   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> fileOrErr =
-  //       llvm::MemoryBuffer::getFileOrSTDIN(inputFilename);
-  //   if (std::error_code ec = fileOrErr.getError()) {
-  //     llvm::errs() << "Could not open input file: " << ec.message() << "\n";
-  //     return -1;
-  //   }
+  // Otherwise, the input is '.mlir'.
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> fileOrErr =
+      llvm::MemoryBuffer::getFileOrSTDIN(inputFilename);
+  if (std::error_code ec = fileOrErr.getError()) {
+    llvm::errs() << "Could not open input file: " << ec.message() << "\n";
+    return -1;
+  }
 
-  //   // Parse the input mlir.
-  //   llvm::SourceMgr sourceMgr;
-  //   sourceMgr.AddNewSourceBuffer(std::move(*fileOrErr), llvm::SMLoc());
-  //   mlir::OwningOpRef<mlir::ModuleOp> module =
-  //       mlir::parseSourceFile<mlir::ModuleOp>(sourceMgr, &context);
-  //   if (!module) {
-  //     llvm::errs() << "Error can't load file " << inputFilename << "\n";
-  //     return 3;
-  //   }
+  // Parse the input mlir.
+  llvm::SourceMgr sourceMgr;
+  sourceMgr.AddNewSourceBuffer(std::move(*fileOrErr), llvm::SMLoc());
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      mlir::parseSourceFile<mlir::ModuleOp>(sourceMgr, &context);
+  if (!module) {
+    llvm::errs() << "Error can't load file " << inputFilename << "\n";
+    return 3;
+  }
 
-  //   module->dump();
+  module->dump();
   return 0;
 }
 

@@ -11,7 +11,8 @@ set(LIBS
 # version llvm di add_executable per aggiungere un executable target
 add_llvm_executable(toy
     toyc.cpp
-    AST.cpp
+    frontend/AST.cpp
+    frontend/MLIRGen.cpp
 )
 # applichiamo i vari flag visti nel root CML qua
 llvm_update_compile_flags(toy)

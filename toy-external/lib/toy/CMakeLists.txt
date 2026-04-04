@@ -2,7 +2,7 @@
 add_mlir_dialect_library(MLIRToy
         # StandaloneTypes.cpp
         ToyDialect.cpp
-        # StandaloneOps.cpp
+        ToyOps.cpp
         # StandalonePasses.cpp
 
         ADDITIONAL_HEADER_DIRS
@@ -21,6 +21,7 @@ add_mlir_dialect_library(MLIRToy
         # questi non sono sempre facili da trovare, guarda i link errors e
         # fai come ti ha insegnato il russo
         MLIRIR
+        MLIRParser
         # MLIRInferTypeOpInterface
         # MLIRFuncDialect
         )
