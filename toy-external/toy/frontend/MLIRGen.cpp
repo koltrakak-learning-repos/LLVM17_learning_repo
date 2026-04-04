@@ -147,22 +147,20 @@ private:
       return nullptr;
     }
 
-    // // Implicitly return void if no return statement was emitted.
-    // // FIXME: we may fix the parser instead to always return the last
-    // expression
-    // // (this would possibly help the REPL case later)
-    // ReturnOp returnOp;
-    // if (!entryBlock.empty())
-    //   returnOp = dyn_cast<ReturnOp>(entryBlock.back());
-    // if (!returnOp) {
-    //   ReturnOp::create(builder, loc(funcAST.getProto()->loc()));
-    // } else if (returnOp.hasOperand()) {
-    //   // Otherwise, if this return operation has an operand then add a result
-    //   to
-    //   // the function (sempre un tensore unranked).
-    //   function.setType(builder.getFunctionType(
-    //       function.getFunctionType().getInputs(), getType(VarType{})));
-    // }
+    // Implicitly return void if no return statement was emitted.
+    // FIXME: we may fix the parser instead to always return the last expression
+    // (this would possibly help the REPL case later)
+    ReturnOp returnOp;
+    if (!entryBlock.empty())
+      returnOp = dyn_cast<ReturnOp>(entryBlock.back());
+    if (!returnOp) {
+      ReturnOp::create(builder, loc(funcAST.getProto()->loc()));
+    } else if (returnOp.hasOperand()) {
+      // Otherwise, if this return operation has an operand then add a result to
+      // the function (sempre un tensore unranked).
+      function.setType(builder.getFunctionType(
+          function.getFunctionType().getInputs(), getType(VarType{})));
+    }
 
     return function;
   }

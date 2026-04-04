@@ -22,6 +22,7 @@ add_mlir_dialect_library(MLIRToy
         # fai come ti ha insegnato il russo
         MLIRIR
         MLIRParser
+        MLIRFunctionInterfaces
         # MLIRInferTypeOpInterface
         # MLIRFuncDialect
         )
