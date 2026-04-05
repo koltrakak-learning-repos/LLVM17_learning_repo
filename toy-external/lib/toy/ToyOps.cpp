@@ -3,11 +3,56 @@
 
 #include "mlir/Interfaces/FunctionImplementation.h"
 
-#define GET_OP_CLASSES
-#include "toy/ToyOps.cpp.inc"
-
 using namespace mlir;
 using namespace mlir::toy;
+
+/// A generalized parser for binary operations. This parses the different forms
+/// of 'printBinaryOp' below.
+static mlir::ParseResult parseBinaryOp(mlir::OpAsmParser &parser,
+                                       mlir::OperationState &result) {
+  SmallVector<mlir::OpAsmParser::UnresolvedOperand, 2> operands;
+  SMLoc operandsLoc = parser.getCurrentLocation();
+  Type type;
+  if (parser.parseOperandList(operands, /*requiredOperandCount=*/2) ||
+      parser.parseOptionalAttrDict(result.attributes) ||
+      parser.parseColonType(type))
+    return mlir::failure();
+
+  // If the type is a function type, it contains the input and result types of
+  // this operation.
+  if (FunctionType funcType = llvm::dyn_cast<FunctionType>(type)) {
+    if (parser.resolveOperands(operands, funcType.getInputs(), operandsLoc,
+                               result.operands))
+      return mlir::failure();
+    result.addTypes(funcType.getResults());
+    return mlir::success();
+  }
+
+  // Otherwise, the parsed type is the type of both operands and results.
+  if (parser.resolveOperands(operands, type, result.operands))
+    return mlir::failure();
+  result.addTypes(type);
+  return mlir::success();
+}
+
+/// A generalized printer for binary operations. It prints in two different
+/// forms depending on if all of the types match.
+static void printBinaryOp(mlir::OpAsmPrinter &printer, mlir::Operation *op) {
+  printer << " " << op->getOperands();
+  printer.printOptionalAttrDict(op->getAttrs());
+  printer << " : ";
+
+  // If all of the types are the same, print the type directly.
+  Type resultType = *op->result_type_begin();
+  if (llvm::all_of(op->getOperandTypes(),
+                   [=](Type type) { return type == resultType; })) {
+    printer << resultType;
+    return;
+  }
+
+  // Otherwise, print a functional type.
+  printer.printFunctionalType(op->getOperandTypes(), op->getResultTypes());
+}
 
 //===----------------------------------------------------------------------===//
 // ConstantOp
@@ -18,6 +63,7 @@ using namespace mlir::toy;
 /// expected to fill in order to build the operation.
 void ConstantOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
                        double value) {
+  // nota come il tensore sia di rango zero (scalare) -> {} == scalare
   auto dataType = RankedTensorType::get({}, builder.getF64Type());
   auto dataAttribute = DenseElementsAttr::get(dataType, value);
   ConstantOp::build(builder, state, dataType, dataAttribute);
@@ -55,6 +101,7 @@ void ConstantOp::print(mlir::OpAsmPrinter &printer) {
 llvm::LogicalResult ConstantOp::verify() {
   // If the return type of the constant is not an unranked tensor, the shape
   // must match the shape of the attribute holding the data.
+  // NOTA L'USO DI getResult(), GENERATO DATO CHE ABBIAMO UN outs NEL FILE td
   auto resultType =
       llvm::dyn_cast<mlir::RankedTensorType>(getResult().getType());
   if (!resultType)
@@ -62,6 +109,8 @@ llvm::LogicalResult ConstantOp::verify() {
 
   // Check that the rank of the attribute type matches the rank of the constant
   // result type.
+  // NOTA L'USO DI getValue(), GENERATO DATO CHE ABBIAMO DATO UN NOME AL
+  // RISPETTIVO ATTRIBUTO
   auto attrType = llvm::cast<mlir::RankedTensorType>(getValue().getType());
   if (attrType.getRank() != resultType.getRank()) {
     return emitOpError("return type must match the one of the attached value "
@@ -79,6 +128,36 @@ llvm::LogicalResult ConstantOp::verify() {
     }
   }
   return mlir::success();
+}
+
+//===----------------------------------------------------------------------===//
+// AddOp
+//===----------------------------------------------------------------------===//
+
+void AddOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                  mlir::Value lhs, mlir::Value rhs) {
+  state.addTypes(UnrankedTensorType::get(builder.getF64Type()));
+  state.addOperands({lhs, rhs});
+}
+
+mlir::ParseResult AddOp::parse(mlir::OpAsmParser &parser,
+                               mlir::OperationState &result) {
+  return parseBinaryOp(parser, result);
+}
+
+void AddOp::print(mlir::OpAsmPrinter &p) { printBinaryOp(p, *this); }
+
+//===----------------------------------------------------------------------===//
+// GenericCallOp
+//===----------------------------------------------------------------------===//
+
+void GenericCallOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                          StringRef callee, ArrayRef<mlir::Value> arguments) {
+  // Generic call always returns an unranked Tensor initially.
+  state.addTypes(UnrankedTensorType::get(builder.getF64Type()));
+  state.addOperands(arguments);
+  state.addAttribute("callee",
+                     mlir::SymbolRefAttr::get(builder.getContext(), callee));
 }
 
 //===----------------------------------------------------------------------===//
@@ -118,6 +197,23 @@ void FuncOp::print(mlir::OpAsmPrinter &p) {
 }
 
 //===----------------------------------------------------------------------===//
+// MulOp
+//===----------------------------------------------------------------------===//
+
+void MulOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                  mlir::Value lhs, mlir::Value rhs) {
+  state.addTypes(UnrankedTensorType::get(builder.getF64Type()));
+  state.addOperands({lhs, rhs});
+}
+
+mlir::ParseResult MulOp::parse(mlir::OpAsmParser &parser,
+                               mlir::OperationState &result) {
+  return parseBinaryOp(parser, result);
+}
+
+void MulOp::print(mlir::OpAsmPrinter &p) { printBinaryOp(p, *this); }
+
+//===----------------------------------------------------------------------===//
 // ReturnOp
 //===----------------------------------------------------------------------===//
 
@@ -154,3 +250,36 @@ llvm::LogicalResult ReturnOp::verify() {
                      << ") doesn't match function result type (" << resultType
                      << ")";
 }
+
+//===----------------------------------------------------------------------===//
+// TransposeOp
+//===----------------------------------------------------------------------===//
+
+void TransposeOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                        mlir::Value value) {
+  state.addTypes(UnrankedTensorType::get(builder.getF64Type()));
+  state.addOperands(value);
+}
+
+llvm::LogicalResult TransposeOp::verify() {
+  auto inputType = llvm::dyn_cast<RankedTensorType>(getOperand().getType());
+  auto resultType = llvm::dyn_cast<RankedTensorType>(getType());
+  if (!inputType || !resultType)
+    return mlir::success();
+
+  auto inputShape = inputType.getShape();
+  if (!std::equal(inputShape.begin(), inputShape.end(),
+                  resultType.getShape().rbegin())) {
+    return emitError()
+           << "expected result shape to be a transpose of the input";
+  }
+  return mlir::success();
+}
+
+// A quanto pare è meglio includere il resto delle definizioni delle classi
+// qua in fondo, dopo che sono stati definiti i metodi custom non generati da
+// tablegen. Non ho ben capito il motivo dato che i metodi sopra sono comunque
+// dichiarati nell'header file corrispondente. Io però non mi faccio troppe
+// domande e seguo quanto vedo nel toy tutorial
+#define GET_OP_CLASSES
+#include "toy/ToyOps.cpp.inc"

@@ -1,4 +1,4 @@
-# RUN: toyc-ch2 %s -emit=mlir 2>&1 | FileCheck %s
+# RUN: toy %s -emit=mlir 2>&1 | FileCheck %s
 
 # User defined generic function that operates on unknown shaped arguments
 def multiply_transpose(a, b) {
@@ -13,19 +13,22 @@ def main() {
   print(d);
 }
 
-# CHECK-LABEL: toy.func @multiply_transpose(
-# CHECK-SAME:                               [[VAL_0:%.*]]: tensor<*xf64>, [[VAL_1:%.*]]: tensor<*xf64>) -> tensor<*xf64>
-# CHECK:         [[VAL_2:%.*]] = toy.transpose([[VAL_0]] : tensor<*xf64>) to tensor<*xf64>
-# CHECK-NEXT:    [[VAL_3:%.*]] = toy.transpose([[VAL_1]] : tensor<*xf64>) to tensor<*xf64>
-# CHECK-NEXT:    [[VAL_4:%.*]] = toy.mul [[VAL_2]], [[VAL_3]] :  tensor<*xf64>
-# CHECK-NEXT:    toy.return [[VAL_4]] : tensor<*xf64>
+# CHECK-LABEL:   toy.func @multiply_transpose(
+# CHECK-SAME:      %[[ARG0:.*]]: tensor<*xf64>,
+# CHECK-SAME:      %[[ARG1:.*]]: tensor<*xf64>) -> tensor<*xf64> {
+# CHECK:           %[[TRANSPOSE_0:.*]] = toy.transpose(%[[ARG0]] : tensor<*xf64>) to tensor<*xf64>
+# CHECK:           %[[TRANSPOSE_1:.*]] = toy.transpose(%[[ARG1]] : tensor<*xf64>) to tensor<*xf64>
+# CHECK:           %[[MUL_0:.*]] = toy.mul %[[TRANSPOSE_0]], %[[TRANSPOSE_1]] : tensor<*xf64>
+# CHECK:           toy.return %[[MUL_0]] : tensor<*xf64>
+# CHECK:         }
 
-# CHECK-LABEL: toy.func @main()
-# CHECK-NEXT:    [[VAL_5:%.*]] = toy.constant dense<{{\[\[}}1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>
-# CHECK-NEXT:    [[VAL_6:%.*]] = toy.reshape([[VAL_5]] : tensor<2x3xf64>) to tensor<2x3xf64>
-# CHECK-NEXT:    [[VAL_7:%.*]] = toy.constant dense<[1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00, 5.000000e+00, 6.000000e+00]> : tensor<6xf64>
-# CHECK-NEXT:    [[VAL_8:%.*]] = toy.reshape([[VAL_7]] : tensor<6xf64>) to tensor<2x3xf64>
-# CHECK-NEXT:    [[VAL_9:%.*]] = toy.generic_call @multiply_transpose([[VAL_6]], [[VAL_8]]) : (tensor<2x3xf64>, tensor<2x3xf64>) -> tensor<*xf64>
-# CHECK-NEXT:    [[VAL_10:%.*]] = toy.generic_call @multiply_transpose([[VAL_8]], [[VAL_6]]) : (tensor<2x3xf64>, tensor<2x3xf64>) -> tensor<*xf64>
-# CHECK-NEXT:    toy.print [[VAL_10]] : tensor<*xf64>
-# CHECK-NEXT:    toy.return
+# CHECK-LABEL:   toy.func @main() {
+# CHECK:           %[[CONSTANT_0:.*]] = toy.constant dense<{{\[\[}}1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>
+# CHECK:           %[[RESHAPE_0:.*]] = toy.reshape(%[[CONSTANT_0]] : tensor<2x3xf64>) to tensor<2x3xf64>
+# CHECK:           %[[CONSTANT_1:.*]] = toy.constant dense<[1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00, 5.000000e+00, 6.000000e+00]> : tensor<6xf64>
+# CHECK:           %[[RESHAPE_1:.*]] = toy.reshape(%[[CONSTANT_1]] : tensor<6xf64>) to tensor<2x3xf64>
+# CHECK:           %[[GENERIC_CALL_0:.*]] = toy.generic_call @multiply_transpose(%[[RESHAPE_0]], %[[RESHAPE_1]]) : (tensor<2x3xf64>, tensor<2x3xf64>) -> tensor<*xf64>
+# CHECK:           %[[GENERIC_CALL_1:.*]] = toy.generic_call @multiply_transpose(%[[RESHAPE_1]], %[[RESHAPE_0]]) : (tensor<2x3xf64>, tensor<2x3xf64>) -> tensor<*xf64>
+# CHECK:           toy.print %[[GENERIC_CALL_1]] : tensor<*xf64>
+# CHECK:           toy.return
+# CHECK:         }

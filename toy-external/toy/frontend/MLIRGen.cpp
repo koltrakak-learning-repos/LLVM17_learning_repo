@@ -165,76 +165,69 @@ private:
     return function;
   }
 
-  //   /// Emit a binary operation
-  //   mlir::Value mlirGen(BinaryExprAST &binop) {
-  //     // First emit the operations for each side of the operation before
-  //     emitting
-  //     // the operation itself. For example if the expression is `a + foo(a)`
-  //     // 1) First it will visiting the LHS, which will return a reference to
-  //     the
-  //     //    value holding `a`. This value should have been emitted at
-  //     declaration
-  //     //    time and registered in the symbol table, so nothing would be
-  //     //    codegen'd. If the value is not in the symbol table, an error has
-  //     been
-  //     //    emitted and nullptr is returned.
-  //     // 2) Then the RHS is visited (recursively) and a call to `foo` is
-  //     emitted
-  //     //    and the result value is returned. If an error occurs we get a
-  //     nullptr
-  //     //    and propagate.
-  //     //
-  //     mlir::Value lhs = mlirGen(*binop.getLHS());
-  //     if (!lhs)
-  //       return nullptr;
-  //     mlir::Value rhs = mlirGen(*binop.getRHS());
-  //     if (!rhs)
-  //       return nullptr;
-  //     auto location = loc(binop.loc());
+  /// Emit a binary operation
+  mlir::Value mlirGen(BinaryExprAST &binop) {
+    // First emit the operations for each side of the operation before emitting
+    // the operation itself. For example if the expression is `a + foo(a)`
+    // 1) First it will visiting the LHS, which will return a reference to the
+    //    value holding `a`. This value should have been emitted at declaration
+    //    time and registered in the symbol table, so nothing would
+    //    be codegen'd. If the value is not in the symbol table, an
+    //    error has been
+    //    emitted and nullptr is returned.
+    // 2) Then the RHS is visited (recursively) and a call to `foo` is emitted
+    //    and the result value is returned. If an error occurs we get a nullptr
+    //    and propagate.
+    //
+    mlir::Value lhs = mlirGen(*binop.getLHS());
+    if (!lhs)
+      return nullptr;
+    mlir::Value rhs = mlirGen(*binop.getRHS());
+    if (!rhs)
+      return nullptr;
+    auto location = loc(binop.loc());
 
-  //     // Derive the operation name from the binary operator. At the moment we
-  //     only
-  //     // support '+' and '*'.
-  //     switch (binop.getOp()) {
-  //     case '+':
-  //       return AddOp::create(builder, location, lhs, rhs);
-  //     case '*':
-  //       return MulOp::create(builder, location, lhs, rhs);
-  //     }
+    // Derive the operation name from the binary operator. At the moment we only
+    // support '+' and '*'.
+    switch (binop.getOp()) {
+    case '+':
+      return AddOp::create(builder, location, lhs, rhs);
+    case '*':
+      return MulOp::create(builder, location, lhs, rhs);
+    }
 
-  //     emitError(location, "invalid binary operator '") << binop.getOp() <<
-  //     "'"; return nullptr;
-  //   }
+    emitError(location, "invalid binary operator '") << binop.getOp() << "'";
+    return nullptr;
+  }
 
-  //   /// This is a reference to a variable in an expression. The variable is
-  //   /// expected to have been declared and so should have a value in the
-  //   symbol
-  //   /// table, otherwise emit an error and return nullptr.
-  //   mlir::Value mlirGen(VariableExprAST &expr) {
-  //     if (auto variable = symbolTable.lookup(expr.getName()))
-  //       return variable;
+  /// This is a reference to a variable in an expression. The variable is
+  /// expected to have been declared and so should have a value in the symbol
+  /// table, otherwise emit an error and return nullptr.
+  mlir::Value mlirGen(VariableExprAST &expr) {
+    if (auto variable = symbolTable.lookup(expr.getName()))
+      return variable;
 
-  //     emitError(loc(expr.loc()), "error: unknown variable '")
-  //         << expr.getName() << "'";
-  //     return nullptr;
-  //   }
+    emitError(loc(expr.loc()), "error: unknown variable '")
+        << expr.getName() << "'";
+    return nullptr;
+  }
 
-  /// Emit a return operation. This will return failure if any generation fails.
-  //   llvm::LogicalResult mlirGen(ReturnExprAST &ret) {
-  //     auto location = loc(ret.loc());
+  // Emit a return operation.This will return failure if any generation fails.
+  llvm::LogicalResult mlirGen(ReturnExprAST &ret) {
+    auto location = loc(ret.loc());
 
-  //     // 'return' takes an optional expression, handle that case here.
-  //     mlir::Value expr = nullptr;
-  //     if (ret.getExpr().has_value()) {
-  //       if (!(expr = mlirGen(**ret.getExpr())))
-  //         return mlir::failure();
-  //     }
+    // 'return' takes an optional expression, handle that case here.
+    mlir::Value expr = nullptr;
+    if (ret.getExpr().has_value()) {
+      if (!(expr = mlirGen(**ret.getExpr())))
+        return mlir::failure();
+    }
 
-  //     // Otherwise, this return operation has zero operands.
-  //     ReturnOp::create(builder, location,
-  //                      expr ? ArrayRef(expr) : ArrayRef<mlir::Value>());
-  //     return mlir::success();
-  //   }
+    // Otherwise, this return operation has zero operands.
+    ReturnOp::create(builder, location,
+                     expr ? ArrayRef(expr) : ArrayRef<mlir::Value>());
+    return mlir::success();
+  }
 
   /// Emit a literal/constant array. It will be emitted as a flattened array of
   /// data in an Attribute attached to a `toy.constant` operation.
@@ -297,52 +290,48 @@ private:
     data.push_back(cast<NumberExprAST>(expr).getValue());
   }
 
-  //   /// Emit a call expression. It emits specific operations for the
-  //   `transpose`
-  //   /// builtin. Other identifiers are assumed to be user-defined functions.
-  //   mlir::Value mlirGen(CallExprAST &call) {
-  //     llvm::StringRef callee = call.getCallee();
-  //     auto location = loc(call.loc());
+  /// Emit a call expression. It emits specific operations for the `transpose`
+  /// builtin. Other identifiers are assumed to be user-defined functions.
+  mlir::Value mlirGen(CallExprAST &call) {
+    llvm::StringRef callee = call.getCallee();
+    auto location = loc(call.loc());
 
-  //     // Codegen the operands first.
-  //     SmallVector<mlir::Value, 4> operands;
-  //     for (auto &expr : call.getArgs()) {
-  //       auto arg = mlirGen(*expr);
-  //       if (!arg)
-  //         return nullptr;
-  //       operands.push_back(arg);
-  //     }
+    // Codegen the operands first.
+    SmallVector<mlir::Value, 4> operands;
+    for (auto &expr : call.getArgs()) {
+      auto arg = mlirGen(*expr);
+      if (!arg)
+        return nullptr;
+      operands.push_back(arg);
+    }
 
-  //     // Builtin calls have their custom operation, meaning this is a
-  //     // straightforward emission.
-  //     if (callee == "transpose") {
-  //       if (call.getArgs().size() != 1) {
-  //         emitError(location, "MLIR codegen encountered an error:
-  //         toy.transpose "
-  //                             "does not accept multiple arguments");
-  //         return nullptr;
-  //       }
-  //       return TransposeOp::create(builder, location, operands[0]);
-  //     }
+    // Builtin calls have their custom operation, meaning this is a
+    // straightforward emission.
+    if (callee == "transpose") {
+      if (call.getArgs().size() != 1) {
+        emitError(location, "MLIR codegen encountered an error: toy.transpose "
+                            "does not accept multiple arguments");
+        return nullptr;
+      }
+      return TransposeOp::create(builder, location, operands[0]);
+    }
 
-  //     // Otherwise this is a call to a user-defined function. Calls to
-  //     // user-defined functions are mapped to a custom call that takes the
-  //     callee
-  //     // name as an attribute.
-  //     return GenericCallOp::create(builder, location, callee, operands);
-  //   }
+    // Otherwise this is a call to a user-defined function. Calls to
+    // user-defined functions are mapped to a custom call that takes the callee
+    // name as an attribute.
+    return GenericCallOp::create(builder, location, callee, operands);
+  }
 
-  //   /// Emit a print expression. It emits specific operations for two
-  //   builtins:
-  //   /// transpose(x) and print(x).
-  //   llvm::LogicalResult mlirGen(PrintExprAST &call) {
-  //     auto arg = mlirGen(*call.getArg());
-  //     if (!arg)
-  //       return mlir::failure();
+  /// Emit a print expression. It emits specific operations for two builtins :
+  /// transpose(x) and print(x).
+  llvm::LogicalResult mlirGen(PrintExprAST &call) {
+    auto arg = mlirGen(*call.getArg());
+    if (!arg)
+      return mlir::failure();
 
-  //     PrintOp::create(builder, loc(call.loc()), arg);
-  //     return mlir::success();
-  //   }
+    PrintOp::create(builder, loc(call.loc()), arg);
+    return mlir::success();
+  }
 
   /// Emit a constant for a single number (FIXME: semantic? broadcast?)
   mlir::Value mlirGen(NumberExprAST &num) {
@@ -370,58 +359,55 @@ private:
     }
   }
 
-  //   /// Handle a variable declaration, we'll codegen the expression that
-  //   forms the
-  //   /// initializer and record the value in the symbol table before returning
-  //   it.
-  //   /// Future expressions will be able to reference this variable through
-  //   symbol
-  //   /// table lookup.
-  //   mlir::Value mlirGen(VarDeclExprAST &vardecl) {
-  //     auto *init = vardecl.getInitVal();
-  //     if (!init) {
-  //       emitError(loc(vardecl.loc()),
-  //                 "missing initializer in variable declaration");
-  //       return nullptr;
-  //     }
+  /// Handle a variable declaration, we'll codegen the expression that forms the
+  /// initializer and record the value in the symbol table before returning it.
+  /// Future expressions will be able to reference this variable through symbol
+  /// table lookup.
+  mlir::Value mlirGen(VarDeclExprAST &vardecl) {
+    auto *init = vardecl.getInitVal();
+    if (!init) {
+      emitError(loc(vardecl.loc()),
+                "missing initializer in variable declaration");
+      return nullptr;
+    }
 
-  //     mlir::Value value = mlirGen(*init);
-  //     if (!value)
-  //       return nullptr;
+    mlir::Value value = mlirGen(*init);
+    if (!value)
+      return nullptr;
 
-  //     // We have the initializer value, but in case the variable was declared
-  //     // with specific shape, we emit a "reshape" operation. It will get
-  //     // optimized out later as needed.
-  //     if (!vardecl.getType().shape.empty()) {
-  //       value = ReshapeOp::create(builder, loc(vardecl.loc()),
-  //                                 getType(vardecl.getType()), value);
-  //     }
+    // We have the initializer value, but in case the variable was declared
+    // with specific shape, we emit a "reshape" operation. It will get
+    // optimized out later as needed.
+    if (!vardecl.getType().shape.empty()) {
+      value = ReshapeOp::create(builder, loc(vardecl.loc()),
+                                getType(vardecl.getType()), value);
+    }
 
-  //     // Register the value in the symbol table.
-  //     if (failed(declare(vardecl.getName(), value)))
-  //       return nullptr;
-  //     return value;
-  //   }
+    // Register the value in the symbol table.
+    if (failed(declare(vardecl.getName(), value)))
+      return nullptr;
+    return value;
+  }
 
   /// Codegen a list of expression, return failure if one of them hit an error.
   llvm::LogicalResult mlirGen(ExprASTList &blockAST) {
     ScopedHashTableScope<StringRef, mlir::Value> varScope(symbolTable);
     for (auto &expr : blockAST) {
-      //   // Specific handling for variable declarations, return statement, and
-      //   // print. These can only appear in block list and not in nested
-      //   // expressions.
-      //   if (auto *vardecl = dyn_cast<VarDeclExprAST>(expr.get())) {
-      //     if (!mlirGen(*vardecl))
-      //       return mlir::failure();
-      //     continue;
-      //   }
-      //   if (auto *ret = dyn_cast<ReturnExprAST>(expr.get()))
-      //     return mlirGen(*ret);
-      //   if (auto *print = dyn_cast<PrintExprAST>(expr.get())) {
-      //     if (mlir::failed(mlirGen(*print)))
-      //       return mlir::success();
-      //     continue;
-      //   }
+      // Specific handling for variable declarations, return statement, and
+      // print. These can only appear in block list and not in nested
+      // expressions.
+      if (auto *vardecl = dyn_cast<VarDeclExprAST>(expr.get())) {
+        if (!mlirGen(*vardecl))
+          return mlir::failure();
+        continue;
+      }
+      if (auto *ret = dyn_cast<ReturnExprAST>(expr.get()))
+        return mlirGen(*ret);
+      if (auto *print = dyn_cast<PrintExprAST>(expr.get())) {
+        if (mlir::failed(mlirGen(*print)))
+          return mlir::success();
+        continue;
+      }
 
       // Generic expression dispatch codegen.
       if (!mlirGen(*expr))

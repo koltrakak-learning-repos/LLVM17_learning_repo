@@ -1,7 +1,6 @@
 #ifndef TOY_TOYDIALECT_H
 #define TOY_TOYDIALECT_H
 
-#include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/IR/Dialect.h"
 
 #include "toy/ToyDialect.h.inc"
