@@ -159,14 +159,33 @@ void MatMulOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
   state.addOperands({lhs, rhs});
 }
 
-// mlir::ParseResult AddOp::parse(mlir::OpAsmParser &parser,
-//                                mlir::OperationState &result) {
-//   return parseBinaryOp(parser, result);
-// }
+mlir::ParseResult MatMulOp::parse(mlir::OpAsmParser &parser,
+                                  mlir::OperationState &result) {
+  return parseBinaryOp(parser, result);
+}
 
-// void AddOp::print(mlir::OpAsmPrinter &p) { printBinaryOp(p, *this); }
+void MatMulOp::print(mlir::OpAsmPrinter &p) { printBinaryOp(p, *this); }
 
-llvm::LogicalResult MatMulOp::verify() { return mlir::success(); }
+llvm::LogicalResult MatMulOp::verify() {
+  auto lhsType = llvm::dyn_cast<mlir::RankedTensorType>(getLhs().getType());
+  auto rhsType = llvm::dyn_cast<mlir::RankedTensorType>(getRhs().getType());
+
+  // se uno dei due argomenti è unranked, non possiamo sapere se le shape
+  // matchano e quindi ce lo facciamo andare bene e basta
+  if (!lhsType || !rhsType)
+    return success();
+
+  // mi limito a matmul tra matrici di rango 2
+  if (lhsType.getRank() != 2 || rhsType.getRank() != 2)
+    return emitOpError("operands must be 2D tensors");
+
+  if (lhsType.getDimSize(1) != rhsType.getDimSize(0))
+    return emitOpError("inner dimensions must match: ")
+           << lhsType << " vs " << rhsType;
+  //    << lhsType.getDimSize(1) << " vs " << rhsType.getDimSize(0);
+
+  return success();
+}
 
 //===----------------------------------------------------------------------===//
 // GenericCallOp

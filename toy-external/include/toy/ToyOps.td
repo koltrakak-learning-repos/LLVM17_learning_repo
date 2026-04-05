@@ -95,7 +95,7 @@ def MatMulOp: Toy_Op<"matmul"> {
   let results = (outs F64Tensor);
 
   // Indicate that the operation has a custom parser and printer method.
-  // let hasCustomAssemblyFormat = 1;
+  let hasCustomAssemblyFormat = 1;
 
   // Allow building a MatMulOp from the two input operands.
   let builders = [
