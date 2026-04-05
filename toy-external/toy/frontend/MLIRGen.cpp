@@ -194,6 +194,8 @@ private:
       return AddOp::create(builder, location, lhs, rhs);
     case '*':
       return MulOp::create(builder, location, lhs, rhs);
+    case '@':
+      return MatMulOp::create(builder, location, lhs, rhs);
     }
 
     emitError(location, "invalid binary operator '") << binop.getOp() << "'";
@@ -269,6 +271,9 @@ private:
     // Build the MLIR op `toy.constant`. This invokes the `ConstantOp::build`
     // method.
     return ConstantOp::create(builder, loc(lit.loc()), type, dataAttribute);
+
+    // kkoltraka: proviamo con il secondo builder (funziona)
+    // return ConstantOp::create(builder, loc(lit.loc()), dataAttribute);
   }
 
   /// Recursive helper function to accumulate the data that compose an array

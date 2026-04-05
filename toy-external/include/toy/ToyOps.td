@@ -81,6 +81,33 @@ def AddOp : Toy_Op<"add"> {
 }
 
 //===----------------------------------------------------------------------===//
+// MatMulOp
+//===----------------------------------------------------------------------===//
+
+def MatMulOp: Toy_Op<"matmul"> {
+  let summary = "matmul operation";
+  let description = [{
+    The "matmul" operation performs a matmul between two tensors.
+    The shapes of the tensor operands are expected to match.
+  }];
+
+  let arguments = (ins F64Tensor:$lhs, F64Tensor:$rhs);
+  let results = (outs F64Tensor);
+
+  // Indicate that the operation has a custom parser and printer method.
+  // let hasCustomAssemblyFormat = 1;
+
+  // Allow building a MatMulOp from the two input operands.
+  let builders = [
+    OpBuilder<(ins "Value":$lhs, "Value":$rhs)>
+  ];
+
+  // Indicate that additional verification for this operation is necessary.
+  // (devo controllare le shape degli argomenti e del risultato)
+  let hasVerifier = 1;
+}
+
+//===----------------------------------------------------------------------===//
 // FuncOp
 //===----------------------------------------------------------------------===//
 

@@ -148,6 +148,27 @@ mlir::ParseResult AddOp::parse(mlir::OpAsmParser &parser,
 void AddOp::print(mlir::OpAsmPrinter &p) { printBinaryOp(p, *this); }
 
 //===----------------------------------------------------------------------===//
+// AddOp
+//===----------------------------------------------------------------------===//
+
+void MatMulOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                     mlir::Value lhs, mlir::Value rhs) {
+  // questo specifica il RESULT type (the type is the important part of the
+  // result); faccio come per le altre operazioni e lo lascio unranked
+  state.addTypes(UnrankedTensorType::get(builder.getF64Type()));
+  state.addOperands({lhs, rhs});
+}
+
+// mlir::ParseResult AddOp::parse(mlir::OpAsmParser &parser,
+//                                mlir::OperationState &result) {
+//   return parseBinaryOp(parser, result);
+// }
+
+// void AddOp::print(mlir::OpAsmPrinter &p) { printBinaryOp(p, *this); }
+
+llvm::LogicalResult MatMulOp::verify() { return mlir::success(); }
+
+//===----------------------------------------------------------------------===//
 // GenericCallOp
 //===----------------------------------------------------------------------===//
 
