@@ -7,6 +7,15 @@ set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON) # roba per macOS a quanto pare
 # c++17 a default ma è anche parametrizzabile con -D
 set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to conform to")
 
+# Usa mold come linker se disponibile
+find_program(MOLD_LINKER mold)
+if(MOLD_LINKER)
+  add_link_options(-fuse-ld=mold)
+  message(STATUS "Using mold linker: ${MOLD_LINKER}")
+else()
+  message(STATUS "mold linker not found, using default")
+endif()
+
 set(LIT_PATH /home/kevin/llvm-project/build/bin/llvm-lit)
 set(LLVM_EXTERNAL_LIT ${LIT_PATH} CACHE STRING "path per llvm-lit")
 message(STATUS "Using llvm-lit in: ${LIT_PATH}")
