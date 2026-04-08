@@ -160,7 +160,7 @@ struct LocalOptsPass : PassInfoMixin<LocalOptsPass> {
       // Controlla la documentazione e prova a rispondere.
       //   Inst1st.replaceAllUsesWith(NewInst);
 
-      //// Soluzione 2:
+      //// Soluzione 1:
       // Posso iterare a mano, però bisogna fare attenzione a non rompere la
       // linked list che c'è tra gli uses di uno stesso usee quando si fa un
       // set:

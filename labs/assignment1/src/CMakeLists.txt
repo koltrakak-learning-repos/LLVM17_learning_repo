@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.20)
-project(local-opts-pass)
+project(assignment1)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # per clangd; configura con -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
 #===============================================================================
 # 1. LOAD LLVM CONFIGURATION
 #===============================================================================
 # Set this to a valid LLVM installation dir
-set(LT_LLVM_INSTALL_DIR "" CACHE PATH "LLVM installation directory")
+set(LT_LLVM_INSTALL_DIR "/home/kevin/LLVM-19.1.7-Linux-X64" CACHE PATH "LLVM installation directory")
 
 # Add the location of LLVMConfig.cmake to CMake search paths (so that
 # find_package can locate it)
@@ -44,9 +44,9 @@ endif()
 #===============================================================================
 # 3. ADD THE TARGET
 #===============================================================================
-add_library(LocalOptsPass SHARED LocalOpts.cpp)
+add_library(assignment1 SHARED assignment1.cpp)
 
 # Allow undefined symbols in shared objects on Darwin (this is the default
 # behaviour on Linux)
-target_link_libraries(LocalOptsPass
+target_link_libraries(assignment1
   "$<$<PLATFORM_ID:Darwin>:-undefined dynamic_lookup>")
