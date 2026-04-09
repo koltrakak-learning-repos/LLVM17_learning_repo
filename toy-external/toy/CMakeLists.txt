@@ -3,7 +3,7 @@ set(LIBS
     # MLIRArithDialect
     # MLIROptLib
     # MLIRRegisterAllDialects
-    # MLIRRegisterAllPasses
+    MLIRRegisterAllPasses
     # # includiamo la libreria creata in lib/ con le sue dipendenze PUBLIC
     MLIRToy
   )

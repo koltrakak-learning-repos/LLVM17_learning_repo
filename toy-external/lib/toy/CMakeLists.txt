@@ -3,7 +3,7 @@ add_mlir_dialect_library(MLIRToy
         # StandaloneTypes.cpp
         ToyDialect.cpp
         ToyOps.cpp
-        # StandalonePasses.cpp
+        transforms/ToyCombine.cpp
 
         ADDITIONAL_HEADER_DIRS
         ${PROJECT_SOURCE_DIR}/include/toy
@@ -11,7 +11,7 @@ add_mlir_dialect_library(MLIRToy
         # dai .td. Questo va a definire un ordine di compilazione, e permette
         # di rilevare modifiche ai file .td da cui si dipende.
         DEPENDS
-        MLIRToyDialectIncGen
+        MLIRToyIncGen
         # MLIRStandalonePassesIncGen
 
         # PUBLIC: chiunque userà la libreria (include la libreria in
