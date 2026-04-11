@@ -9,10 +9,17 @@ mlir_tablegen(ToyDialect.h.inc -gen-dialect-decls)
 mlir_tablegen(ToyDialect.cpp.inc -gen-dialect-defs)
 mlir_tablegen(ToyOps.h.inc -gen-op-decls)
 mlir_tablegen(ToyOps.cpp.inc -gen-op-defs)
+
 set(LLVM_TARGET_DEFINITIONS ToyCombine.td)
 mlir_tablegen(ToyCombine.cpp.inc --gen-rewriters)
+
+set(LLVM_TARGET_DEFINITIONS ShapeInferenceInterface.td)
+mlir_tablegen(ShapeInferenceOpInterfaces.h.inc -gen-op-interface-decls)
+mlir_tablegen(ShapeInferenceOpInterfaces.cpp.inc -gen-op-interface-defs)
+
 # set(LLVM_TARGET_DEFINITIONS Passes.td)
 # mlir_tablegen(Passes.h.inc --gen-pass-decls)
+
 add_public_tablegen_target(MLIRToyIncGen)
 
 # Possiamo continuare a generare la documentazione come prima.

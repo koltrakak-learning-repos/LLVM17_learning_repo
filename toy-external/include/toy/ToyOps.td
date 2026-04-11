@@ -3,11 +3,17 @@
 
 // include "toy/ToyTypes.td"
 include "toy/ToyDialect.td"
+include "toy/ShapeInferenceInterface.td"
 
 // include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/FunctionInterfaces.td"
 // include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/Interfaces/CallInterfaces.td"
+include "mlir/Interfaces/CastInterfaces.td"
+
+
+
 
 //===----------------------------------------------------------------------===//
 // ConstantOp
@@ -61,7 +67,10 @@ def ConstantOp : Toy_Op<"constant", [Pure]> {
 // AddOp
 //===----------------------------------------------------------------------===//
 
-def AddOp : Toy_Op<"add"> {
+def AddOp : Toy_Op<"add", [
+    Pure,
+    DeclareOpInterfaceMethods<ShapeInferenceOpInterface>
+  ]> {
   let summary = "element-wise addition operation";
   let description = [{
     The "add" operation performs element-wise addition between two tensors.
@@ -84,7 +93,10 @@ def AddOp : Toy_Op<"add"> {
 // MatMulOp
 //===----------------------------------------------------------------------===//
 
-def MatMulOp: Toy_Op<"matmul"> {
+def MatMulOp: Toy_Op<"matmul", [
+    Pure,
+    DeclareOpInterfaceMethods<ShapeInferenceOpInterface>
+  ]> {
   let summary = "matmul operation";
   let description = [{
     The "matmul" operation performs a matmul between two tensors.
@@ -166,7 +178,9 @@ def FuncOp : Toy_Op<"func", [
 // GenericCallOp
 //===----------------------------------------------------------------------===//
 
-def GenericCallOp : Toy_Op<"generic_call"> {
+def GenericCallOp : Toy_Op<"generic_call", [
+    DeclareOpInterfaceMethods<CallOpInterface>
+  ]> {
   let summary = "generic call operation";
   let description = [{
     Generic calls represent calls to a user defined function that needs to
@@ -185,7 +199,12 @@ def GenericCallOp : Toy_Op<"generic_call"> {
 
   // The generic call operation takes a symbol reference attribute as the
   // callee, and inputs for the call.
-  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<F64Tensor>:$inputs);
+  let arguments = (ins
+    FlatSymbolRefAttr:$callee,
+    Variadic<F64Tensor>:$inputs,
+    OptionalAttr<DictArrayAttr>:$arg_attrs,
+    OptionalAttr<DictArrayAttr>:$res_attrs
+  );
 
   // The generic call operation returns a single value of TensorType.
   let results = (outs F64Tensor);
@@ -205,7 +224,10 @@ def GenericCallOp : Toy_Op<"generic_call"> {
 // MulOp
 //===----------------------------------------------------------------------===//
 
-def MulOp : Toy_Op<"mul"> {
+def MulOp : Toy_Op<"mul", [
+    Pure,
+    DeclareOpInterfaceMethods<ShapeInferenceOpInterface>
+  ]> {
   let summary = "element-wise multiplication operation";
   let description = [{
     The "mul" operation performs element-wise multiplication between two
@@ -315,7 +337,10 @@ def ReturnOp : Toy_Op<"return", [Pure, HasParent<"FuncOp">,
 // TransposeOp
 //===----------------------------------------------------------------------===//
 
-def TransposeOp : Toy_Op<"transpose", [Pure]> {
+def TransposeOp : Toy_Op<"transpose", [
+    Pure,
+    DeclareOpInterfaceMethods<ShapeInferenceOpInterface>
+  ]> {
   let summary = "transpose operation";
 
   let arguments = (ins F64Tensor:$input);
@@ -335,6 +360,27 @@ def TransposeOp : Toy_Op<"transpose", [Pure]> {
 
   // Invoke a static verify method to verify this transpose operation.
   let hasVerifier = 1;
+}
+
+def CastOp : Toy_Op<"cast", [
+    DeclareOpInterfaceMethods<CastOpInterface>,
+    DeclareOpInterfaceMethods<ShapeInferenceOpInterface>,
+    Pure,
+    SameOperandsAndResultShape
+  ]> {
+  let summary = "shape cast operation";
+  let description = [{
+    The "cast" operation converts a tensor from one type to an equivalent type
+    without changing any data elements. The source and destination types must
+    both be tensor types with the same element type. If both are ranked, then
+    shape is required to match. The operation is invalid if converting to a
+    mismatching constant dimension.
+  }];
+
+  let arguments = (ins F64Tensor:$input);
+  let results = (outs F64Tensor:$output);
+
+  let assemblyFormat = "$input attr-dict `:` type($input) `to` type($output)";
 }
 
 #endif // TOY_OPS

@@ -4,6 +4,7 @@ def main() {
   var a = [[1, 2, 3], [4, 5, 6]];
   var b<3, 2> = [1, 2, 3, 4, 5, 6];
   var e = a @ b;
+  print(e);
 }
 
 # CHECK-LABEL:   toy.func @main() {
