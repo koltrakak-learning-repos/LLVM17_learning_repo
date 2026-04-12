@@ -13,7 +13,7 @@ def main() {
   print(d);
 }
 
-# CHECK-LABEL:   toy.func @multiply_transpose(
+# CHECK-LABEL:   toy.func private @multiply_transpose(
 # CHECK-SAME:      %[[ARG0:.*]]: tensor<*xf64>,
 # CHECK-SAME:      %[[ARG1:.*]]: tensor<*xf64>) -> tensor<*xf64> {
 # CHECK:           %[[TRANSPOSE_0:.*]] = toy.transpose(%[[ARG0]] : tensor<*xf64>) to tensor<*xf64>

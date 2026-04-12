@@ -191,10 +191,15 @@ llvm::LogicalResult MatMulOp::verify() {
   return success();
 }
 
-// FIXME:
 /// Infer the output shape of the MatMulOp, this is required by the shape
 /// inference interface.
-void MatMulOp::inferShapes() { getResult().setType(getLhs().getType()); }
+void MatMulOp::inferShapes() {
+  auto lhsType = llvm::dyn_cast<mlir::RankedTensorType>(getLhs().getType());
+  auto rhsType = llvm::dyn_cast<mlir::RankedTensorType>(getRhs().getType());
+
+  SmallVector<int64_t, 2> dims({lhsType.getDimSize(0), rhsType.getDimSize(1)});
+  getResult().setType(RankedTensorType::get(dims, lhsType.getElementType()));
+}
 
 //===----------------------------------------------------------------------===//
 // GenericCallOp
