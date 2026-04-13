@@ -5,6 +5,7 @@ add_mlir_dialect_library(MLIRToy
         ToyOps.cpp
         transforms/ToyCombine.cpp
         transforms/ShapeInferencePass.cpp
+        transforms/LowerToAffineLoops.cpp
 
         ADDITIONAL_HEADER_DIRS
         ${PROJECT_SOURCE_DIR}/include/toy
@@ -25,6 +26,7 @@ add_mlir_dialect_library(MLIRToy
         MLIRParser
         MLIRFunctionInterfaces
         MLIRInferTypeOpInterface
+        # MLIRRegisterAllDialects
         # MLIRFuncDialect
         )
 

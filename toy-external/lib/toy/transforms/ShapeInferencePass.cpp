@@ -51,6 +51,9 @@ namespace {
 ///
 struct ShapeInferencePass
     : public mlir::PassWrapper<ShapeInferencePass, OperationPass<toy::FuncOp>> {
+  // Identificatore del passo all'interno dell'infrastruttura di mlir; se non
+  // specificato pass wrapper si lamenta dato che serve per la registrazione
+  // presso il pass manager. Peculiarità di MLIR dato che non si usa RTTI.
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ShapeInferencePass)
 
   StringRef getArgument() const override { return "toy-shape-inference"; }
