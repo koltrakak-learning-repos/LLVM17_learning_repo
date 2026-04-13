@@ -318,7 +318,14 @@ struct TransposeOpLowering : public OpConversionPattern<toy::TransposeOp> {
 // ToyToAffine Conversion Patterns: MatMul operations
 //===----------------------------------------------------------------------===//
 
-// FIXME:
+// Ricordati come si fa una matmul:
+// for (int i=0; i<rows_a; i++) {
+//     for (int j=0; j<cols_b; j++) {
+//         for (int k=0; k<rows_b; k++) {
+//             c[i, j] += a[i, k] * b[k, j];
+//         }
+//     }
+// }
 struct MatMulOpLowering : public OpConversionPattern<toy::MatMulOp> {
   using OpConversionPattern<toy::MatMulOp>::OpConversionPattern;
 
@@ -326,8 +333,6 @@ struct MatMulOpLowering : public OpConversionPattern<toy::MatMulOp> {
   matchAndRewrite(toy::MatMulOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     auto loc = op->getLoc();
-
-    // TODO: devo crearmi a mano il loop nest
 
     // Insert an allocation and deallocation for the result of this operation.
     auto tensorType = llvm::cast<RankedTensorType>((*op->result_type_begin()));
@@ -337,40 +342,65 @@ struct MatMulOpLowering : public OpConversionPattern<toy::MatMulOp> {
     // Create a nest of affine loops, with one loop per dimension of the shape.
     // The lowerbound of each loop is zero, the upper bound is the respective
     // dimension of that loop level, and the step is 1 for all loops.
-    SmallVector<int64_t, 4> lowerBounds(tensorType.getRank(), /*Value=*/0);
-    SmallVector<int64_t, 4> steps(tensorType.getRank(), /*Value=*/1);
-    // this takes a callback that is used to construct the body of the innermost
-    // loop given a: builder, a location and a range of loop induction
-    // variables.
+    SmallVector<int64_t, 4> lowerBounds(3, /*Value=*/0);
+    // the first two loops scan the output matrix; the last loop scans a row of
+    // the lhs (= columns of the rhs) to compute the dot product for the single
+    // element.
+    auto lhs = llvm::cast<RankedTensorType>(op.getLhs().getType());
+    auto rhs = llvm::cast<RankedTensorType>(op.getRhs().getType());
+    SmallVector<int64_t, 4> upperBounds{lhs.getDimSize(0), rhs.getDimSize(1),
+                                        lhs.getDimSize(1)};
+    SmallVector<int64_t, 4> steps(3, /*Value=*/1);
+
+    // TODO: controlla se c'è veramente bisogno di questo; e vedi se magari
+    // riesci a fare con linalg dialect.
+    // Devo fare attenzione ad inizializzare la matrice risultato (alloc) a zero
+    // dato che il loop nest ACCUMULA INCREMENTI invece di fare un assegnamento
+    // secco come per le altre binop
+    SmallVector<int64_t, 4> initLB(2, /*Value=*/0);
+    SmallVector<int64_t, 4> initUB{lhs.getDimSize(0), rhs.getDimSize(1)};
+    SmallVector<int64_t, 4> initSteps(2, /*Value=*/1);
     affine::buildAffineLoopNest(
-        rewriter, loc, lowerBounds, tensorType.getShape(), steps,
+        rewriter, loc, initLB, initUB, initSteps,
         [&](OpBuilder &nestedBuilder, Location loc, ValueRange ivs) {
-          // Call the processing function with the rewriter and the loop
-          // induction variables. This function will return the value to store
-          // at the current index.
-          Value valueToStore = processIteration(nestedBuilder, ivs);
-          // actually store the value within the allocated region and with the
-          // correct index
+          auto zero = arith::ConstantOp::create(
+              rewriter, loc,
+              rewriter.getFloatAttr(tensorType.getElementType(), 0.0));
+          affine::AffineStoreOp::create(nestedBuilder, loc, zero, alloc, ivs);
+        });
+
+    // qua facciamo la matmul vera e propria
+    affine::buildAffineLoopNest(
+        rewriter, loc, lowerBounds, upperBounds, steps,
+        [&](OpBuilder &nestedBuilder, Location loc, ValueRange ivs) {
+          Value i = ivs[0];
+          Value j = ivs[1];
+          Value k = ivs[2];
+
+          // Generate loads for the element of 'lhs' and 'rhs'
+          auto loadedLhs = affine::AffineLoadOp::create(
+              nestedBuilder, loc, adaptor.getLhs(), ValueRange{i, k});
+          auto loadedRhs = affine::AffineLoadOp::create(
+              nestedBuilder, loc, adaptor.getRhs(), ValueRange{k, j});
+
+          // Now we can perform the mac:
+          // - first we do the multiplication to get an increment
+          // - then we load the accumulated value
+          // - we sum the new increment to the accumulator
+          // - lastly we store the new accumulator value
+          auto increment =
+              arith::MulFOp::create(nestedBuilder, loc, loadedLhs, loadedRhs);
+          auto accumulator = affine::AffineLoadOp::create(
+              nestedBuilder, loc, alloc, ValueRange{i, j});
+          auto valueToStore =
+              arith::AddFOp::create(nestedBuilder, loc, accumulator, increment);
           affine::AffineStoreOp::create(nestedBuilder, loc, valueToStore, alloc,
-                                        ivs);
+                                        ValueRange{i, j});
         });
 
     // Replace the source operation with the generated alloc (everyone the used
     // the source op now will use the alloc).
     rewriter.replaceOp(op, alloc);
-
-    // FIXME: togli questo
-    lowerOpToLoops(op, rewriter, [&](OpBuilder &builder, ValueRange loopIvs) {
-      // Generate loads for the element of 'lhs' and 'rhs' at the
-      // inner loop.
-      auto loadedLhs =
-          affine::AffineLoadOp::create(builder, loc, adaptor.getLhs(), loopIvs);
-      auto loadedRhs =
-          affine::AffineLoadOp::create(builder, loc, adaptor.getRhs(), loopIvs);
-
-      // Create the binary operation performed on the loaded values.
-      return arith::AddFOp::create(builder, loc, loadedLhs, loadedRhs);
-    });
 
     return success();
   }
@@ -427,8 +457,8 @@ void ToyToAffineLoweringPass::runOnOperation() {
   // the set of patterns that will lower the Toy operations.
   RewritePatternSet patterns(&getContext());
   patterns.add<AddOpLowering, ConstantOpLowering, FuncOpLowering, MulOpLowering,
-               PrintOpLowering, ReturnOpLowering, TransposeOpLowering>(
-      &getContext());
+               PrintOpLowering, ReturnOpLowering, TransposeOpLowering,
+               MatMulOpLowering>(&getContext());
 
   // With the target and rewrite patterns defined, we can now attempt the
   // conversion. The conversion will signal failure if any of our `illegal`

@@ -6,3 +6,46 @@ def main() {
   var e = a @ b;
   print(e);
 }
+
+# CHECK-LABEL:   func.func @main() {
+# CHECK:           %[[CONSTANT_0:.*]] = arith.constant 0.000000e+00 : f64
+# CHECK:           %[[CONSTANT_1:.*]] = arith.constant 6.000000e+00 : f64
+# CHECK:           %[[CONSTANT_2:.*]] = arith.constant 5.000000e+00 : f64
+# CHECK:           %[[CONSTANT_3:.*]] = arith.constant 4.000000e+00 : f64
+# CHECK:           %[[CONSTANT_4:.*]] = arith.constant 3.000000e+00 : f64
+# CHECK:           %[[CONSTANT_5:.*]] = arith.constant 2.000000e+00 : f64
+# CHECK:           %[[CONSTANT_6:.*]] = arith.constant 1.000000e+00 : f64
+# CHECK:           %[[ALLOC_0:.*]] = memref.alloc() : memref<2x2xf64>
+# CHECK:           %[[ALLOC_1:.*]] = memref.alloc() : memref<3x2xf64>
+# CHECK:           %[[ALLOC_2:.*]] = memref.alloc() : memref<2x3xf64>
+# CHECK:           affine.store %[[CONSTANT_6]], %[[ALLOC_2]][0, 0] : memref<2x3xf64>
+# CHECK:           affine.store %[[CONSTANT_5]], %[[ALLOC_2]][0, 1] : memref<2x3xf64>
+# CHECK:           affine.store %[[CONSTANT_4]], %[[ALLOC_2]][0, 2] : memref<2x3xf64>
+# CHECK:           affine.store %[[CONSTANT_3]], %[[ALLOC_2]][1, 0] : memref<2x3xf64>
+# CHECK:           affine.store %[[CONSTANT_2]], %[[ALLOC_2]][1, 1] : memref<2x3xf64>
+# CHECK:           affine.store %[[CONSTANT_1]], %[[ALLOC_2]][1, 2] : memref<2x3xf64>
+# CHECK:           affine.store %[[CONSTANT_6]], %[[ALLOC_1]][0, 0] : memref<3x2xf64>
+# CHECK:           affine.store %[[CONSTANT_5]], %[[ALLOC_1]][0, 1] : memref<3x2xf64>
+# CHECK:           affine.store %[[CONSTANT_4]], %[[ALLOC_1]][1, 0] : memref<3x2xf64>
+# CHECK:           affine.store %[[CONSTANT_3]], %[[ALLOC_1]][1, 1] : memref<3x2xf64>
+# CHECK:           affine.store %[[CONSTANT_2]], %[[ALLOC_1]][2, 0] : memref<3x2xf64>
+# CHECK:           affine.store %[[CONSTANT_1]], %[[ALLOC_1]][2, 1] : memref<3x2xf64>
+# CHECK:           affine.for %[[VAL_0:.*]] = 0 to 2 {
+# CHECK:             affine.for %[[VAL_1:.*]] = 0 to 2 {
+# CHECK:               affine.store %[[CONSTANT_0]], %[[ALLOC_0]]{{\[}}%[[VAL_0]], %[[VAL_1]]] : memref<2x2xf64>
+# CHECK:               affine.for %[[VAL_2:.*]] = 0 to 3 {
+# CHECK:                 %[[LOAD_0:.*]] = affine.load %[[ALLOC_2]]{{\[}}%[[VAL_0]], %[[VAL_2]]] : memref<2x3xf64>
+# CHECK:                 %[[LOAD_1:.*]] = affine.load %[[ALLOC_1]]{{\[}}%[[VAL_2]], %[[VAL_1]]] : memref<3x2xf64>
+# CHECK:                 %[[MULF_0:.*]] = arith.mulf %[[LOAD_0]], %[[LOAD_1]] : f64
+# CHECK:                 %[[LOAD_2:.*]] = affine.load %[[ALLOC_0]]{{\[}}%[[VAL_0]], %[[VAL_1]]] : memref<2x2xf64>
+# CHECK:                 %[[ADDF_0:.*]] = arith.addf %[[LOAD_2]], %[[MULF_0]] : f64
+# CHECK:                 affine.store %[[ADDF_0]], %[[ALLOC_0]]{{\[}}%[[VAL_0]], %[[VAL_1]]] : memref<2x2xf64>
+# CHECK:               }
+# CHECK:             }
+# CHECK:           }
+# CHECK:           toy.print %[[ALLOC_0]] : memref<2x2xf64>
+# CHECK:           memref.dealloc %[[ALLOC_2]] : memref<2x3xf64>
+# CHECK:           memref.dealloc %[[ALLOC_1]] : memref<3x2xf64>
+# CHECK:           memref.dealloc %[[ALLOC_0]] : memref<2x2xf64>
+# CHECK:           return
+# CHECK:         }
