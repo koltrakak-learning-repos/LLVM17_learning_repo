@@ -1,0 +1,8 @@
+# RUN: toy -emit=jit %s
+# questa è una direttiva per lit che dice di ignorare questo test su windows
+# (la feature non è ancora supportata)
+# UNSUPPORTED: target={{.*windows.*}}
+
+def main() {
+ print([[1, 2], [3, 4]]);
+}

@@ -352,11 +352,11 @@ struct MatMulOpLowering : public OpConversionPattern<toy::MatMulOp> {
                                         lhs.getDimSize(1)};
     SmallVector<int64_t, 4> steps(3, /*Value=*/1);
 
-    // TODO: controlla se c'è veramente bisogno di questo; e vedi se magari
-    // riesci a fare con linalg dialect.
-    // Devo fare attenzione ad inizializzare la matrice risultato (alloc) a zero
-    // dato che il loop nest ACCUMULA INCREMENTI invece di fare un assegnamento
-    // secco come per le altre binop
+    // NB: Devo fare attenzione ad inizializzare la matrice risultato (alloc) a
+    // zero dato che il loop nest ACCUMULA INCREMENTI invece di fare un
+    // assegnamento secco come per le altre binop. (se non lo faccio quando
+    // provo ad eseguire ottengo tutti dei nan dato che accumulo in elementi non
+    // inizializzati)
     SmallVector<int64_t, 4> initLB(2, /*Value=*/0);
     SmallVector<int64_t, 4> initUB{lhs.getDimSize(0), rhs.getDimSize(1)};
     SmallVector<int64_t, 4> initSteps(2, /*Value=*/1);
