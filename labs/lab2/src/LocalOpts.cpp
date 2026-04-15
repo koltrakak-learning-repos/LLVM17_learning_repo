@@ -40,7 +40,7 @@ struct LocalOptsPass : PassInfoMixin<LocalOptsPass> {
               isPowerOfTwo(lhsConstant->getSExtValue())) {
 
             int shift_value =
-                static_cast<int>(std::sqrt(lhsConstant->getSExtValue()));
+                static_cast<int>(std::log2(lhsConstant->getSExtValue()));
             outs() << "shifto di " << shift_value << "\n";
 
             LLVMContext &ctx = I.getContext();
@@ -55,7 +55,7 @@ struct LocalOptsPass : PassInfoMixin<LocalOptsPass> {
           else if (!lhsConstant && rhsConstant &&
                    isPowerOfTwo(rhsConstant->getSExtValue())) {
 
-            int shift_value = std::sqrt(rhsConstant->getSExtValue());
+            int shift_value = std::log2(rhsConstant->getSExtValue());
             outs() << "shifto di " << shift_value << "\n";
 
             LLVMContext &ctx = I.getContext();

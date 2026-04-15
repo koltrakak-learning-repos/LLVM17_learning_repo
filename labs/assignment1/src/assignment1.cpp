@@ -5,7 +5,7 @@
 
 #include <cmath>
 #include <cstdint>
-#include <vector>
+#include <tuple>
 
 using namespace llvm;
 
@@ -48,11 +48,11 @@ struct AlgIdentityPass : PassInfoMixin<AlgIdentityPass> {
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
     for (BasicBlock &B : F) {
-      bool incrementIterator = true;
       for (auto IIter = B.begin(); IIter != B.end();) {
         Instruction &I = *IIter;
         // spostiamo subito l'iteratore al prossimo elemento dato che il
-        // prossimo blocco potrebbe eliminare delle istruzioni
+        // l'istruzione corrente potrebbe essere eliminata (rompendo così
+        // l'iteratore)
         IIter++;
 
         auto *op = dyn_cast<BinaryOperator>(&I);
@@ -62,8 +62,8 @@ struct AlgIdentityPass : PassInfoMixin<AlgIdentityPass> {
 
         if (auto *operand = getIdentityOperand(op)) {
           I.replaceAllUsesWith(operand);
-          // devo fare attenzione a rimuover istruzioni dato che altrimenti
-          // rompo l'iteratore. Ho già incrementato e quindi sono al sicuro
+          // devo fare attenzione a rimuovere istruzioni dato che rompo
+          // l'iteratore. Ho già incrementato e quindi sono al sicuro
           I.removeFromParent();
         }
       }
@@ -71,56 +71,89 @@ struct AlgIdentityPass : PassInfoMixin<AlgIdentityPass> {
 
     return PreservedAnalyses::all();
   }
+}; // AlgIdentityPass
 
-  // mul by power of 2 strength reductio}n
-  PreservedAnalyses run2(Function &F, FunctionAnalysisManager &) {
+void substituteWithShiftAndSums(Instruction *I, Value *varOperand,
+                                int shiftValue, int remainder) {
+  LLVMContext &ctx = I->getContext();
+  Type *int32Ty = Type::getInt32Ty(ctx);
+  Constant *c = ConstantInt::get(int32Ty, shiftValue);
+  Instruction *shiftInst =
+      BinaryOperator::Create(Instruction::Shl, varOperand, c);
+  shiftInst->insertAfter(I);
 
+  Instruction *prevInst = shiftInst;
+  while (remainder > 0) {
+    Instruction *addInst =
+        BinaryOperator::Create(Instruction::Add, varOperand, prevInst);
+    addInst->insertAfter(prevInst);
+
+    prevInst = addInst;
+    remainder--;
+  }
+
+  I->replaceAllUsesWith(prevInst);
+}
+
+std::tuple<int, int, bool> getBestShiftValueAndRemainder(int constantValue,
+                                                         int maxRemainder = 1) {
+  // calcoliamo shiftValue come "logaritmo intero" della costante
+  int shiftValue = static_cast<int>(std::log2(constantValue));
+  int remainder = constantValue - (1 << shiftValue);
+
+  bool skip = false;
+  if (remainder > maxRemainder)
+    skip = true;
+
+  return std::make_tuple(shiftValue, remainder, skip);
+}
+
+struct StrengthReductionPass : PassInfoMixin<StrengthReductionPass> {
+
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
     for (BasicBlock &B : F) {
       for (Instruction &I : B) {
         if (auto *op = dyn_cast<BinaryOperator>(&I);
             op && op->getOpcode() == Instruction::Mul) {
-
           outs() << "trovata una moltiplicazione: " << *op << "\n";
+
           Value *lhs = op->getOperand(0);
           Value *rhs = op->getOperand(1);
           ConstantInt *lhsConstant = dyn_cast<ConstantInt>(lhs);
           ConstantInt *rhsConstant = dyn_cast<ConstantInt>(rhs);
 
           // lhs è la potenza di due
-          if (lhsConstant && !rhsConstant &&
-              isPowerOfTwo(lhsConstant->getSExtValue())) {
+          if (lhsConstant) {
+            auto [shiftValue, remainder, skip] =
+                getBestShiftValueAndRemainder(lhsConstant->getSExtValue(), 10);
+            if (skip) {
+              outs() << "con un resto di " << remainder
+                     << " non conviene sostituire la moltiplicazione con uno "
+                        "shift\n";
+              continue;
+            }
 
-            int shift_value =
-                static_cast<int>(std::sqrt(lhsConstant->getSExtValue()));
-            outs() << "shifto di " << shift_value << "\n";
-
-            LLVMContext &ctx = I.getContext();
-            Type *int32Ty = Type::getInt32Ty(ctx);
-            Constant *c = ConstantInt::get(int32Ty, shift_value);
-            Instruction *shiftInst =
-                BinaryOperator::Create(Instruction::Shl, rhs, c);
-            shiftInst->insertAfter(&I);
-            I.replaceAllUsesWith(shiftInst);
+            outs() << "shifto di " << shiftValue << " e aggiungo " << remainder
+                   << " somme\n";
+            substituteWithShiftAndSums(&I, rhs, shiftValue, remainder);
           }
           // rhs è la potenza di due
-          else if (!lhsConstant && rhsConstant &&
-                   isPowerOfTwo(rhsConstant->getSExtValue())) {
+          else if (rhsConstant) {
+            auto [shiftValue, remainder, skip] =
+                getBestShiftValueAndRemainder(rhsConstant->getSExtValue(), 10);
+            if (skip) {
+              outs() << "con un resto di " << remainder
+                     << "non conviene sostituire la moltiplicazione con uno "
+                        "shift\n";
+              continue;
+            }
 
-            int shift_value = std::sqrt(rhsConstant->getSExtValue());
-            outs() << "shifto di " << shift_value << "\n";
-
-            LLVMContext &ctx = I.getContext();
-            Type *int32Ty = Type::getInt32Ty(ctx);
-            Constant *c = ConstantInt::get(int32Ty, shift_value);
-
-            Instruction *shiftInst =
-                BinaryOperator::Create(Instruction::Shl, lhs, c);
-            shiftInst->insertAfter(&I);
-            I.replaceAllUsesWith(shiftInst);
+            outs() << "shifto di " << shiftValue << " e aggiungo " << remainder
+                   << " somme\n";
+            substituteWithShiftAndSums(&I, lhs, shiftValue, remainder);
           } else {
             outs() << "... ma non aveva una potenza di due come argomento "
                       ":(\n";
-            continue;
           }
         }
       }
@@ -133,7 +166,8 @@ struct AlgIdentityPass : PassInfoMixin<AlgIdentityPass> {
   // functions decorated with the optnone LLVM attribute. Note that clang
   // -O0 decorates all functions with optnone.
   static bool isRequired() { return true; }
-};
+}; // StrengthReductionPass
+
 } // namespace
 
 //-----------------------------------------------------------------------------
@@ -150,6 +184,12 @@ llvm::PassPluginLibraryInfo getLocalOptsPassPluginInfo() {
                     FPM.addPass(AlgIdentityPass());
                     return true;
                   }
+
+                  if (Name == "strength-reduction-pass") {
+                    FPM.addPass(StrengthReductionPass());
+                    return true;
+                  }
+
                   return false;
                 });
           }};
