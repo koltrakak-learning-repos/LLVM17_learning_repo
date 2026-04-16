@@ -33,13 +33,13 @@ in un cfg con predecessori multipli è detto nodo di join
 
 ...
 
-quando ci sono dei cicli, devo fare delle assunzioni sui valori iniziali (boundary conditions) e iterare fino a convergenza
+quando ci sono dei cicli, devo fare delle assunzioni sui valori iniziali (initial conditions) e iterare fino a convergenza
 
-- al primo giro, aggiornerò le mie boundary conditions
+- al primo giro, aggiornerò i set relativi alle initial conditions
 - questo cambierà l'input di qualche blocco e quindi dovrò fare un altro giro
 - ma questo potrebbe cambiare l'input di altri blocchi ancora, ... da cui la necessità di iterare fino a convergenza
 
-boundary conditions sono spesso pari all'insieme vuoto
+initial conditions sono spesso pari all'insieme vuoto
 
 - out(entry_block)
 - out dei back-edges
@@ -88,3 +88,15 @@ la funzione di trasferimento è la stessa per qualunque problema di DFA, basta c
 - eg: liveness analysis
     - gen == usi
     - kill == definizioni
+
+NB: l'obiettivo di questo framework è **fornire una determinata informazione per ogni punto del programma**
+
+NB: dato che il framework è iterativo, e dato che abbiamo delle condizioni iniziali, **possiamo partire da qualsiasi blocco**
+
+## Available expressions
+
+se non ho l'espressione available in tutti i percorsi, allora un blocco successivo non può dire di avere un espressione disponibile o meno
+
+...
+
+interessante notare che le initial condition stavolta contengono tutti gli elementi del dominio dato che il meet è l'intersezione

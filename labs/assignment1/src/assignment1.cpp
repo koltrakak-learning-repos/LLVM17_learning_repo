@@ -1,3 +1,4 @@
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
@@ -31,13 +32,11 @@ Value *getIdentityOperand(BinaryOperator *op) {
       return RHS;
     if (ConstRHS && ConstRHS->isZero())
       return LHS;
-    break;
   case Instruction::Mul:
     if (ConstLHS && ConstLHS->isOne())
       return RHS;
     if (ConstRHS && ConstRHS->isOne())
       return LHS;
-    break;
   default:
     break;
   }
@@ -93,6 +92,7 @@ void substituteWithShiftAndSums(Instruction *I, Value *varOperand,
   }
 
   I->replaceAllUsesWith(prevInst);
+  I->removeFromParent();
 }
 
 std::tuple<int, int, bool> getBestShiftValueAndRemainder(int constantValue,
@@ -108,11 +108,48 @@ std::tuple<int, int, bool> getBestShiftValueAndRemainder(int constantValue,
   return std::make_tuple(shiftValue, remainder, skip);
 }
 
+bool reduceStrength(Instruction *I, Value *varOperand, int constantValue,
+                    int maxRemainder = 1) {
+  auto [shiftValue, remainder, skip] =
+      getBestShiftValueAndRemainder(constantValue, maxRemainder);
+  if (skip) {
+    outs() << "con un resto di " << remainder
+           << " non conviene sostituire la moltiplicazione con uno "
+              "shift\n";
+    return false;
+  }
+
+  outs() << "shifto di " << shiftValue << " e aggiungo " << remainder
+         << " somme\n";
+
+  // NB: qua faccio un cast statico dato che questa funzione deve essere
+  // chiamata solamente quando a monte si è è già confermato che l'istruzione
+  // sia un binop
+  switch (auto opCode = cast<BinaryOperator>(I)->getOpcode()) {
+  case Instruction::Mul:
+    substituteWithShiftAndSums(I, varOperand, shiftValue, remainder);
+    break;
+  case Instruction::UDiv:
+    substituteWithShiftAndSums(I, varOperand, shiftValue, remainder);
+    break;
+  case Instruction::SDiv:
+    substituteWithShiftAndSums(I, varOperand, shiftValue, remainder);
+    break;
+  default:
+    outs() << "questo non sarebbe dovuto succedere..., come ci è arrivato qua: "
+           << opCode;
+    return false;
+  }
+  return true;
+}
+
 struct StrengthReductionPass : PassInfoMixin<StrengthReductionPass> {
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
     for (BasicBlock &B : F) {
-      for (Instruction &I : B) {
+      // NB: uso un range che incrementa l'iteratore subito, in questo modo
+      // posso cancellare le istruzioni senza problemi
+      for (Instruction &I : make_early_inc_range(B)) {
         if (auto *op = dyn_cast<BinaryOperator>(&I);
             op && op->getOpcode() == Instruction::Mul) {
           outs() << "trovata una moltiplicazione: " << *op << "\n";
@@ -122,35 +159,10 @@ struct StrengthReductionPass : PassInfoMixin<StrengthReductionPass> {
           ConstantInt *lhsConstant = dyn_cast<ConstantInt>(lhs);
           ConstantInt *rhsConstant = dyn_cast<ConstantInt>(rhs);
 
-          // lhs è la potenza di due
           if (lhsConstant) {
-            auto [shiftValue, remainder, skip] =
-                getBestShiftValueAndRemainder(lhsConstant->getSExtValue(), 10);
-            if (skip) {
-              outs() << "con un resto di " << remainder
-                     << " non conviene sostituire la moltiplicazione con uno "
-                        "shift\n";
-              continue;
-            }
-
-            outs() << "shifto di " << shiftValue << " e aggiungo " << remainder
-                   << " somme\n";
-            substituteWithShiftAndSums(&I, rhs, shiftValue, remainder);
-          }
-          // rhs è la potenza di due
-          else if (rhsConstant) {
-            auto [shiftValue, remainder, skip] =
-                getBestShiftValueAndRemainder(rhsConstant->getSExtValue(), 10);
-            if (skip) {
-              outs() << "con un resto di " << remainder
-                     << "non conviene sostituire la moltiplicazione con uno "
-                        "shift\n";
-              continue;
-            }
-
-            outs() << "shifto di " << shiftValue << " e aggiungo " << remainder
-                   << " somme\n";
-            substituteWithShiftAndSums(&I, lhs, shiftValue, remainder);
+            reduceStrength(&I, rhs, lhsConstant->getSExtValue(), 10);
+          } else if (rhsConstant) {
+            reduceStrength(&I, lhs, rhsConstant->getSExtValue(), 10);
           } else {
             outs() << "... ma non aveva una potenza di due come argomento "
                       ":(\n";
