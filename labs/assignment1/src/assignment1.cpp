@@ -73,18 +73,27 @@ struct AlgIdentityPass : PassInfoMixin<AlgIdentityPass> {
 }; // AlgIdentityPass
 
 void substituteWithShiftAndSums(Instruction *I, Value *varOperand,
-                                int shiftValue, int remainder) {
+                                int shiftValue, int remainder, bool shiftLeft) {
   LLVMContext &ctx = I->getContext();
   Type *int32Ty = Type::getInt32Ty(ctx);
   Constant *c = ConstantInt::get(int32Ty, shiftValue);
-  Instruction *shiftInst =
-      BinaryOperator::Create(Instruction::Shl, varOperand, c);
+  // attenzione ad usare lo shift destro aritmetico dato che possiamo star
+  // dividendo un numero negativo
+  Instruction::BinaryOps binopKind =
+      shiftLeft ? Instruction::Shl : Instruction::AShr;
+  Instruction *shiftInst = BinaryOperator::Create(binopKind, varOperand, c);
+
   shiftInst->insertAfter(I);
 
+  binopKind = shiftLeft ? Instruction::Add : Instruction::Sub;
   Instruction *prevInst = shiftInst;
+  // FIXME: questa logica è stupida e la dovrei correggere. Dovrei controllare
+  // se mi conviene sommare o sottrarre invece di decidere a priori.
+  // Ad esempio: %4 = sdiv i32 15, %1; dovrebbe tradursi in uno shift a destra
+  // di 4 più una somma invece di uno shift di 3 più 7 sottrazioni
   while (remainder > 0) {
     Instruction *addInst =
-        BinaryOperator::Create(Instruction::Add, varOperand, prevInst);
+        BinaryOperator::Create(binopKind, prevInst, varOperand);
     addInst->insertAfter(prevInst);
 
     prevInst = addInst;
@@ -95,8 +104,8 @@ void substituteWithShiftAndSums(Instruction *I, Value *varOperand,
   I->removeFromParent();
 }
 
-std::tuple<int, int, bool> getBestShiftValueAndRemainder(int constantValue,
-                                                         int maxRemainder = 1) {
+std::tuple<int, int, bool> getBestShiftValueAndRemainder(uint64_t constantValue,
+                                                         int maxRemainder) {
   // calcoliamo shiftValue come "logaritmo intero" della costante
   int shiftValue = static_cast<int>(std::log2(constantValue));
   int remainder = constantValue - (1 << shiftValue);
@@ -108,38 +117,22 @@ std::tuple<int, int, bool> getBestShiftValueAndRemainder(int constantValue,
   return std::make_tuple(shiftValue, remainder, skip);
 }
 
-bool reduceStrength(Instruction *I, Value *varOperand, int constantValue,
-                    int maxRemainder = 1) {
+bool reduceStrength(Instruction *I, Value *varOperand, uint64_t constantValue,
+                    int maxRemainder, bool shiftLeft) {
   auto [shiftValue, remainder, skip] =
       getBestShiftValueAndRemainder(constantValue, maxRemainder);
   if (skip) {
-    outs() << "con un resto di " << remainder
-           << " non conviene sostituire la moltiplicazione con uno "
-              "shift\n";
+    errs() << "con un resto di " << remainder
+           << " non conviene applicare strength reduction\n";
     return false;
   }
 
-  outs() << "shifto di " << shiftValue << " e aggiungo " << remainder
-         << " somme\n";
+  const char *dir = shiftLeft ? "sinistra" : "destra";
+  const char *remainderOp = shiftLeft ? "somme" : "sottrazioni";
+  errs() << "shifto di " << shiftValue << " a " << dir << " e aggiungo "
+         << remainder << " " << remainderOp << "\n";
 
-  // NB: qua faccio un cast statico dato che questa funzione deve essere
-  // chiamata solamente quando a monte si è è già confermato che l'istruzione
-  // sia un binop
-  switch (auto opCode = cast<BinaryOperator>(I)->getOpcode()) {
-  case Instruction::Mul:
-    substituteWithShiftAndSums(I, varOperand, shiftValue, remainder);
-    break;
-  case Instruction::UDiv:
-    substituteWithShiftAndSums(I, varOperand, shiftValue, remainder);
-    break;
-  case Instruction::SDiv:
-    substituteWithShiftAndSums(I, varOperand, shiftValue, remainder);
-    break;
-  default:
-    outs() << "questo non sarebbe dovuto succedere..., come ci è arrivato qua: "
-           << opCode;
-    return false;
-  }
+  substituteWithShiftAndSums(I, varOperand, shiftValue, remainder, shiftLeft);
   return true;
 }
 
@@ -150,22 +143,44 @@ struct StrengthReductionPass : PassInfoMixin<StrengthReductionPass> {
       // NB: uso un range che incrementa l'iteratore subito, in questo modo
       // posso cancellare le istruzioni senza problemi
       for (Instruction &I : make_early_inc_range(B)) {
-        if (auto *op = dyn_cast<BinaryOperator>(&I);
-            op && op->getOpcode() == Instruction::Mul) {
-          outs() << "trovata una moltiplicazione: " << *op << "\n";
+        if (auto *op = dyn_cast<BinaryOperator>(&I)) {
+          bool shiftLeft;
+          int maxRemainder;
+          switch (op->getOpcode()) {
+          case Instruction::Mul:
+            shiftLeft = true;
+            maxRemainder = 3;
+            break;
+          case Instruction::UDiv:
+            shiftLeft = false;
+            // div sono costose, conviene aggiungere anche tante somme
+            maxRemainder = 10;
+            break;
+          case Instruction::SDiv:
+            shiftLeft = false;
+            maxRemainder = 10;
+            break;
+          default:
+            // binop a cui non posso applicare strength reduction
+            continue;
+          }
 
           Value *lhs = op->getOperand(0);
           Value *rhs = op->getOperand(1);
           ConstantInt *lhsConstant = dyn_cast<ConstantInt>(lhs);
           ConstantInt *rhsConstant = dyn_cast<ConstantInt>(rhs);
 
+          // NB: assumo che le costanti siano positive per semplificarmi la
+          // vita.
           if (lhsConstant) {
-            reduceStrength(&I, rhs, lhsConstant->getSExtValue(), 10);
+            reduceStrength(&I, rhs, lhsConstant->getZExtValue(), maxRemainder,
+                           shiftLeft);
           } else if (rhsConstant) {
-            reduceStrength(&I, lhs, rhsConstant->getSExtValue(), 10);
+            reduceStrength(&I, lhs, rhsConstant->getZExtValue(), maxRemainder,
+                           shiftLeft);
           } else {
-            outs() << "... ma non aveva una potenza di due come argomento "
-                      ":(\n";
+            // non ho un argomento costante e quindi non posso applicare
+            // strenght reduction
           }
         }
       }
