@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdint>
 #include <tuple>
+#include <vector>
 
 using namespace llvm;
 
@@ -170,13 +171,24 @@ struct StrengthReductionPass : PassInfoMixin<StrengthReductionPass> {
           ConstantInt *lhsConstant = dyn_cast<ConstantInt>(lhs);
           ConstantInt *rhsConstant = dyn_cast<ConstantInt>(rhs);
 
-          // NB: assumo che le costanti siano positive per semplificarmi la
-          // vita.
+          // NB: ottimizzo solo costanti positive per semplificarmi la vita.
           if (lhsConstant) {
-            reduceStrength(&I, rhs, lhsConstant->getZExtValue(), maxRemainder,
+            if (lhsConstant->getSExtValue() < 0) {
+              errs() << "non voglio fare strength reduction di costanti "
+                        "negative\n";
+              continue;
+            }
+
+            reduceStrength(&I, rhs, lhsConstant->getSExtValue(), maxRemainder,
                            shiftLeft);
           } else if (rhsConstant) {
-            reduceStrength(&I, lhs, rhsConstant->getZExtValue(), maxRemainder,
+            if (rhsConstant->getSExtValue() < 0) {
+              errs() << "non voglio fare strength reduction di costanti "
+                        "negative\n";
+              continue;
+            }
+
+            reduceStrength(&I, lhs, rhsConstant->getSExtValue(), maxRemainder,
                            shiftLeft);
           } else {
             // non ho un argomento costante e quindi non posso applicare
@@ -195,6 +207,145 @@ struct StrengthReductionPass : PassInfoMixin<StrengthReductionPass> {
   static bool isRequired() { return true; }
 }; // StrengthReductionPass
 
+// Restituisco l'operando variabile, il valore dell'operando costante e un flag
+// di errore che mi dice se la binop aveva un operando costante o meno (nella
+// posizione giusta in caso di sottrazione)
+std::tuple<Value *, int64_t, bool> parseBinopOperands(BinaryOperator *op) {
+  Value *lhs = op->getOperand(0);
+  Value *rhs = op->getOperand(1);
+  auto *lhsConstant = dyn_cast<ConstantInt>(lhs);
+  auto *rhsConstant = dyn_cast<ConstantInt>(rhs);
+
+  if (lhsConstant) {
+    return std::make_tuple(rhs, lhsConstant->getSExtValue(), true);
+
+  } else if (rhsConstant) {
+    return std::make_tuple(lhs, rhsConstant->getSExtValue(), true);
+
+  } else {
+    return std::make_tuple(nullptr, 0, false);
+  }
+}
+
+bool computeSimplificationCondition(BinaryOperator::BinaryOps useeBinopOpcode,
+                                    BinaryOperator::BinaryOps userBinopOpcode,
+                                    int64_t useeConstantValue,
+                                    int64_t userConstantValue) {
+
+  bool simplificationCondition = false;
+
+  // doppio switch tremendo che controlla le costanti di usee e user per vedere
+  // se posso applicare una semplificazione.
+  // NB: le sottrazioni sono problematiche in quanto non commutative (il segno
+  // della costante cambia in base a se è operando destro o sinistro). Oltre al
+  // valore della costante, dovrei tenere traccia anche dell'operando di
+  // provenienza. Per adesso ASSUMO CHE LA COSTANTE SIA SEMPRE A DESTRA
+  // (canonicalizzazione immaginaria)
+  switch (userBinopOpcode) {
+  case Instruction::Add:
+    switch (useeBinopOpcode) {
+    case Instruction::Add:
+      simplificationCondition = useeConstantValue == -userConstantValue;
+      break;
+    case Instruction::Sub:
+      simplificationCondition = useeConstantValue == userConstantValue;
+      break;
+    default:
+      simplificationCondition = false;
+    }
+    break;
+
+  case Instruction::Sub:
+    switch (useeBinopOpcode) {
+    case Instruction::Add:
+      simplificationCondition = useeConstantValue == userConstantValue;
+      break;
+    case Instruction::Sub:
+      simplificationCondition = useeConstantValue == -userConstantValue;
+      break;
+    default:
+      simplificationCondition = false;
+    }
+    break;
+  default:
+    simplificationCondition = false;
+  }
+
+  return simplificationCondition;
+}
+
+struct MultiInstructionPass : PassInfoMixin<MultiInstructionPass> {
+
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
+
+    std::vector<BinaryOperator *> toDelete = {};
+
+    for (BasicBlock &B : F) {
+      for (Instruction &I : B) {
+        errs() << "sono" << I << "\n";
+
+        // posso semplificare solamente determinate categoria di binop
+        if (auto *useeBinop = dyn_cast<BinaryOperator>(&I)) {
+
+          switch (useeBinop->getOpcode()) {
+          case Instruction::Add:
+            break;
+          case Instruction::Sub:
+            break;
+          default:
+            // binop usee che non considero per semplificazioni
+            continue;
+          }
+
+          auto [useeVarOperand, useeConstantValue, hasConstant] =
+              parseBinopOperands(useeBinop);
+          if (!hasConstant)
+            // senza un argomento costante la binop usee non può portare a
+            // semplificazioni
+            continue;
+
+          for (User *user : I.users()) {
+            if (auto *userBinop = dyn_cast<BinaryOperator>(user)) {
+              auto [_, userConstantValue, hasConstant] =
+                  parseBinopOperands(userBinop);
+              if (!hasConstant)
+                // se lo user non ha una costante, non posso semplificare
+                continue;
+
+              bool simplificationCondition = computeSimplificationCondition(
+                  useeBinop->getOpcode(), userBinop->getOpcode(),
+                  useeConstantValue, userConstantValue);
+
+              // controlliamo se posso eliminare l'istruzione user in quanto si
+              // semplifica ad un alias dello usee
+              if (simplificationCondition) {
+                errs() << "semplifico" << *userBinop << "\n";
+                userBinop->replaceAllUsesWith(useeVarOperand);
+                // NB: non posso fare subito 'userBinop->removeFromParent()'
+                // dato che romperei l'iteratore delle istruzioni; stavolta non
+                // posso fare neanche incrementare subito l'iteratore dato che
+                // non sto cancellando l'istruzione corrente, ma uno user che
+                // viene dopo nell'ir. Mi salvo quindi le istruzioni da
+                // eliminare in un vettore, e le cancello alla fine
+                toDelete.push_back(userBinop);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    for (auto *binop : toDelete)
+      binop->eraseFromParent();
+
+    return PreservedAnalyses::all();
+  }
+  // Without isRequired returning true, this pass will be skipped for
+  // functions decorated with the optnone LLVM attribute. Note that clang
+  // -O0 decorates all functions with optnone.
+  static bool isRequired() { return true; }
+}; // MultiInstructionPass
+
 } // namespace
 
 //-----------------------------------------------------------------------------
@@ -202,7 +353,7 @@ struct StrengthReductionPass : PassInfoMixin<StrengthReductionPass> {
 //-----------------------------------------------------------------------------
 
 llvm::PassPluginLibraryInfo getLocalOptsPassPluginInfo() {
-  return {LLVM_PLUGIN_API_VERSION, "AlgIdentityPass", LLVM_VERSION_STRING,
+  return {LLVM_PLUGIN_API_VERSION, "Assignment1Passes", LLVM_VERSION_STRING,
           [](PassBuilder &PB) {
             PB.registerPipelineParsingCallback(
                 [](StringRef Name, FunctionPassManager &FPM,
@@ -214,6 +365,11 @@ llvm::PassPluginLibraryInfo getLocalOptsPassPluginInfo() {
 
                   if (Name == "strength-reduction-pass") {
                     FPM.addPass(StrengthReductionPass());
+                    return true;
+                  }
+
+                  if (Name == "multi-instruction-pass") {
+                    FPM.addPass(MultiInstructionPass());
                     return true;
                   }
 
