@@ -100,3 +100,11 @@ se non ho l'espressione available in tutti i percorsi, allora un blocco successi
 ...
 
 interessante notare che le initial condition stavolta contengono tutti gli elementi del dominio dato che il meet è l'intersezione
+
+# assignments
+
+...
+
+## constant propagation
+
+non abbiamo un bit vector ma un pair-vector (mappa)
