@@ -1,9 +1,13 @@
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/IR/Dominators.h"
+
+#include <vector>
 
 using namespace llvm;
 
@@ -23,16 +27,16 @@ struct LoopInfoPass : PassInfoMixin<LoopInfoPass> {
         // - Come capire se un basic block del CFG è l’header di un loop
         if (LI.isLoopHeader(&B)) {
           errs() << "Header trovato: ";
-          B.printAsOperand(errs(), true);
+          B.printAsOperand(errs(), false);
           errs() << "\n";
         }
 
         // - Come recuperare l’handle al loop che contiene un dato basic block
         Loop *loop = LI.getLoopFor(&B);
         if (loop) {
-          B.printAsOperand(errs(), true);
+          B.printAsOperand(errs(), false);
           errs() << " appartiene al loop con header: ";
-          loop->getHeader()->printAsOperand(errs(), true);
+          loop->getHeader()->printAsOperand(errs(), false);
           errs() << "\n";
         }
       }
@@ -61,7 +65,7 @@ struct LoopIterPass : PassInfoMixin<LoopIterPass> {
 
     for (auto *L : LI) {
       errs() << "Trovato un loop, il suo header è: ";
-      L->getHeader()->printAsOperand(errs(), true);
+      L->getHeader()->printAsOperand(errs(), false);
       errs() << "\n";
 
       if (!L->isLoopSimplifyForm())
@@ -69,16 +73,16 @@ struct LoopIterPass : PassInfoMixin<LoopIterPass> {
 
       errs() << "\tI suoi blocchi significativi sono:\n";
       errs() << "\t\tPreheader: ";
-      L->getLoopPreheader()->printAsOperand(errs(), true);
+      L->getLoopPreheader()->printAsOperand(errs(), false);
       errs() << "\n";
       errs() << "\t\tHeader: ";
-      L->getHeader()->printAsOperand(errs(), true);
+      L->getHeader()->printAsOperand(errs(), false);
       errs() << "\n";
 
       errs() << "\tTutti i suoi blocchi :\n";
       for (auto *B : L->getBlocks()) {
         errs() << "\t\t";
-        B->printAsOperand(errs(), true);
+        B->printAsOperand(errs(), false);
         errs() << "\n";
       }
     }
@@ -108,37 +112,98 @@ struct LoopPass : PassInfoMixin<LoopPass> {
     //   CFG
     //   c) Stampi tutti i blocchi che compongono il loop
 
-    if (LI.begin() == LI.end())
-      errs() << F.getName() << " non contiene loop\n\n";
+    errs() << "\n----------" << F.getName() << "-----------\n\n";
 
-    errs() << "In seguito tutti gli header dei loop di " << F.getName();
-    for (BasicBlock &B : F) {
-      if (LI.isLoopHeader(&B)) {
-        errs() << B;
+    if (LI.begin() == LI.end()) {
+      errs() << F.getName() << " non contiene loop\n";
+    } else {
+      errs() << "In seguito tutti i loop-header di: " << F.getName() << "\n";
+      for (BasicBlock &B : F) {
+        if (LI.isLoopHeader(&B)) {
+          errs() << "\t";
+          B.printAsOperand(errs(), false);
+          errs() << "\n";
+        }
       }
-    }
-
-    errs() << "In seguito tutti i loop di " << F.getName();
-    for (auto *L : LI) {
-      errs() << "Loop: ";
-      L->getHeader()->printAsOperand(errs(), true);
       errs() << "\n";
 
-      if (!L->isLoopSimplifyForm())
-        errs() << "NON è in forma normale\n";
+      errs() << "In seguito tutti i loop di: " << F.getName() << "\n";
+      // se voglio iterare anche i loop innestati devo utilizzare dei
+      // metodi specifici di LoopInfo
+      for (auto *L : LI.getLoopsInPreorder()) {
+        // errs() << "\nQuesto è il CFG della sua funzione padre\n";
+        // errs() << *L->getHeader()->getParent();
+        errs() << "\theader: ";
+        L->getHeader()->printAsOperand(errs(), false);
+        errs() << "\n";
 
-      errs() << "Questo è il CFG della sua funzione padre\n";
-      errs() << *L->getHeader()->getParent();
+        if (!L->isLoopSimplifyForm())
+          errs() << "\t\tNON è in forma normale\n";
 
-      errs() << "Tutti i suoi blocchi :\n";
-      for (auto *B : L->getBlocks()) {
-        errs() << "\t";
-        B->printAsOperand(errs(), true);
+        errs() << "\ttutti i blocchi:\n";
+        for (auto *B : L->getBlocks()) {
+          auto *innerMostLoop = LI.getLoopFor(B);
+          if (L != innerMostLoop)
+            // blocco appartenente ad un loop più interno; verrà stampato dopo
+            continue;
+
+          errs() << "\t\t";
+          B->printAsOperand(errs(), false);
+          errs() << "\n";
+        }
+
+        auto subLoops = L->getSubLoops();
+        for (auto *subLoop : subLoops) {
+          errs() << "\t\tSubloop con header: ";
+          subLoop->getHeader()->printAsOperand(errs(), false);
+          errs() << "\n";
+          // FIXME: qua sto facendo una porcata dato che getLoopPredecessor()
+          // potrebbe restituirmi null se ci sono predecessori multipli, e non
+          // sto controllando prima di dereferenziare.
+          //
+          // non proprio preheader dato che i preheader devono avere solamente
+          // un edge verso l'header; un predecessore singolo può avere altri
+          // edges
+          errs() << "\t\t\tIl suo unico predecessore (non preheader) è: ";
+          subLoop->getLoopPredecessor()->printAsOperand(errs(), false);
+          errs() << "\n";
+
+          SmallVector<BasicBlock *, 4> ExitingBlocks;
+          subLoop->getExitingBlocks(ExitingBlocks);
+          errs() << "\t\te con i seguenti exiting blocks: \n";
+          for (auto *exitingBlock : ExitingBlocks) {
+            errs() << "\t\t\t";
+            exitingBlock->printAsOperand(errs(), false);
+            errs() << " -> exits to -> ";
+            // NB: purtroppo, non esiste una funzione B->getSuccessors(); devo
+            // passare dalla terminator instruction e iterare anche fin troppo
+            // manualmente
+            const Instruction *TI = exitingBlock->getTerminator();
+            for (unsigned i = 0, e = TI->getNumSuccessors(); i != e; ++i) {
+              BasicBlock *Succ = TI->getSuccessor(i);
+              // voglio solamente i successori (exit) che rimangono dentro il
+              // loop esterno, ma non dentro quello interno
+              if (L->contains(Succ) && !subLoop->contains(Succ)) {
+                Succ->printAsOperand(errs(), false);
+                errs() << ", ";
+              }
+            }
+            errs() << "\n";
+          }
+        }
+        // const std::vector< Loop * > & 	getSubLoops () const
+        // Return the loops contained entirely within this loop.
+
+        // void getExitBlocks (SmallVectorImpl<BasicBlock * >
+        // &ExitingBlocks) const
+        //  	Return all blocks inside the loop that have successors outside
+        //  of the loop.
+
         errs() << "\n";
       }
-
-      errs() << "\n--------------------\n\n";
     }
+
+    errs() << "\n--------------------\n\n";
 
     return PreservedAnalyses::all();
   }
@@ -148,6 +213,20 @@ struct LoopPass : PassInfoMixin<LoopPass> {
   // -O0 decorates all functions with optnone.
   static bool isRequired() { return true; }
 }; // LoopPass
+
+struct DominanceTreePass : PassInfoMixin<DominanceTreePass> {
+
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM) {
+    DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
+
+    return PreservedAnalyses::all();
+  }
+
+  // Without isRequired returning true, this pass will be skipped for
+  // functions decorated with the optnone LLVM attribute. Note that clang
+  // -O0 decorates all functions with optnone.
+  static bool isRequired() { return true; }
+}; // DominanceTreePass
 
 } // namespace
 
@@ -173,6 +252,11 @@ llvm::PassPluginLibraryInfo getLocalOptsPassPluginInfo() {
 
                   if (Name == "loop-pass") {
                     FPM.addPass(LoopPass());
+                    return true;
+                  }
+
+                  if (Name == "dominance-tree-pass") {
+                    FPM.addPass(DominanceTreePass());
                     return true;
                   }
 
