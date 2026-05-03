@@ -4,6 +4,8 @@
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/raw_ostream.h"
 
+// #include "llvm/ADT/BreadthFirstIterator.h"
+#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/Dominators.h"
 
@@ -218,6 +220,19 @@ struct DominanceTreePass : PassInfoMixin<DominanceTreePass> {
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM) {
     DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
+    errs() << "printing the dom-tree of: " << F.getName() << "\n";
+    DT.print(errs());
+
+    // Come scorrere i blocchi di un dominator tree (nodo radice, discendenti)
+    for (auto *domNode : depth_first(DT.getRootNode())) {
+      domNode->getBlock()->printAsOperand(errs(), false);
+      errs() << "\n";
+    }
+
+    // Come stabilire le relazioni di dominanza tra basic block, istruzioni
+    // e/o usi
+    // - bool 	dominates (const BasicBlock *A, const BasicBlock *B) const
+    // - metodi simili per il resto
 
     return PreservedAnalyses::all();
   }
@@ -255,7 +270,7 @@ llvm::PassPluginLibraryInfo getLocalOptsPassPluginInfo() {
                     return true;
                   }
 
-                  if (Name == "dominance-tree-pass") {
+                  if (Name == "dom-tree-pass") {
                     FPM.addPass(DominanceTreePass());
                     return true;
                   }
