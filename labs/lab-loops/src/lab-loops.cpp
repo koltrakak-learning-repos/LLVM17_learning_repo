@@ -4,6 +4,7 @@
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <algorithm>
 #include <llvm/IR/IntrinsicInst.h>
 #include <vector>
 
@@ -26,24 +27,65 @@ struct MyLICMPass : PassInfoMixin<MyLICMPass> {
       if (!L->isLoopSimplifyForm())
         errs() << "\tNON è in forma normale\n";
 
+      // NB: siccome un istruzione è l.i. anche quando i suoi operandi sono
+      // l.i., mi salvo in un set le istruzioni l.i. che ho trovato fino ad
+      // ora, e continuo cercare iterando fin quando il mio set non converge.
+      // Questa strategia gestisce il caso in cui processi un'istruzione PRIMA
+      // di uno dei suoi argomenti l.i., in questo caso la singola iterazione
+      // non classificherebbe l'istruzione come l.i.
+      //
+      // In realtà, dovrei procedere con un'altra iterazione solo se trovo una
+      // nuova istruzione l.i. che ha degli user dentro al loop che non sono
+      // stati marcati come l.i.
       std::vector<Instruction *> LIInstructions;
-      for (auto *B : L->getBlocks()) {
-        for (auto &I : *B) {
-          bool loopInvariantArguments = true;
+      bool changed = true;
+      while (changed) {
+        changed = false;
 
-          for (Value *Operand : I.operands()) {
-            if (auto *OperandInst = dyn_cast<Instruction>(Operand)) {
-              Loop *LoopOfOperand = LI.getLoopFor(OperandInst->getParent());
-              if (LoopOfOperand && L == LoopOfOperand) {
-                // TODO: fai anche gli altri casi
-                loopInvariantArguments = false;
+        for (auto *B : L->getBlocks()) {
+          for (auto &I : *B) {
+            // branch di fallthrough sono l.i., sicuramente però non posso
+            // hoistarle. Di conseguenza le ignoro.
+            if (I.isTerminator())
+              continue;
+
+            // istruzione già marcata come loop-invariant, non ho bisogno di
+            // riprocessarla
+            if (std::find(LIInstructions.begin(), LIInstructions.end(), &I) !=
+                LIInstructions.end())
+              continue;
+
+            bool loopInvariantArguments = true;
+
+            // Un'istruzione è loopInvariant se:
+            // - i suoi operandi sono definiti fuori dal loop
+            // - i suoi operandi sono costanti
+            // - i suoi operandi sono definiti dentro al loop ma sono istruzioni
+            //   loop-invariant
+            for (Value *Operand : I.operands()) {
+              if (auto *OperandInst = dyn_cast<Instruction>(Operand)) {
+                Loop *LoopOfOperand = LI.getLoopFor(OperandInst->getParent());
+
+                if (LoopOfOperand && L == LoopOfOperand) {
+                  if (std::find(LIInstructions.begin(), LIInstructions.end(),
+                                OperandInst) != LIInstructions.end()) {
+                    // operando definito dentro al loop ma la definizione è L.I.
+                  } else {
+                    loopInvariantArguments = false;
+                  }
+                }
+
+                // operando definito fuori da loop, OPPURE, fuori da questo loop
               }
-              // operando definito fuori da loop, OPPURE, fuori da questo loop
+
+              // altrimenti, operando costante e quindi loop-invariant
+            }
+
+            if (loopInvariantArguments) {
+              LIInstructions.push_back(&I);
+              changed = true;
             }
           }
-
-          if (loopInvariantArguments)
-            LIInstructions.push_back(&I);
         }
       }
 
@@ -52,13 +94,6 @@ struct MyLICMPass : PassInfoMixin<MyLICMPass> {
         errs() << "\t" << *I << "\n";
       }
     }
-
-    // prova a confrontare con i metodi di Loop
-    // bool 	isLoopInvariant (const Value *V) const
-    //  	Return true if the specified value is loop invariant.
-    // bool 	hasLoopInvariantOperands (const Instruction *I) const
-    //  	Return true if all the operands of the specified instruction are
-    //  loop invariant.
 
     errs() << "\n----------------------------\n\n";
 

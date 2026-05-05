@@ -15,7 +15,7 @@ header:                                                ; preds = %latch, %prehea
   br i1 %5, label %6, label %exit
 
 6:                                                ; preds = %header
-  %7 = add nsw i32 %0, 3                            ; d=3, e=a+d
+  %7 = add nsw i32 %0, 3                            ; d=3, e=a+d -> L.I.
   %8 = icmp slt i32 %.01, 10                        ; b<10
   br i1 %8, label %9, label %11
 
@@ -25,12 +25,12 @@ header:                                                ; preds = %latch, %prehea
 
 11:                                               ; preds = %9, %6
   %.1 = phi i32 [ %10, %9 ], [ %.01, %6 ]           ; b
-  %12 = add nsw i32 %7, %2                         ; f=e+c
-  %13 = add nsw i32 %.0, %.1                        ; i+b
+  %12 = add nsw i32 %7, %2                          ; f=e+c -> L.I.
+  %13 = add nsw i32 %.0, %.1                        ; g=i+b
   br label %latch
 
 latch:                                               ; preds = %11
-  %15 = add nsw i32 %.0, 1
+  %15 = add nsw i32 %.0, 1                          ; i++
   br label %header, !llvm.loop !6
 
 exit:                                               ; preds = %header
