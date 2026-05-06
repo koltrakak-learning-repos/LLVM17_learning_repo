@@ -1,11 +1,10 @@
-#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/raw_ostream.h"
-
-#include <algorithm>
 #include <llvm/IR/IntrinsicInst.h>
+
 #include <vector>
 
 using namespace llvm;
@@ -51,8 +50,7 @@ struct MyLICMPass : PassInfoMixin<MyLICMPass> {
 
             // istruzione già marcata come loop-invariant, non ho bisogno di
             // riprocessarla
-            if (std::find(LIInstructions.begin(), LIInstructions.end(), &I) !=
-                LIInstructions.end())
+            if (llvm::is_contained(LIInstructions, &I))
               continue;
 
             bool loopInvariantArguments = true;
@@ -67,8 +65,7 @@ struct MyLICMPass : PassInfoMixin<MyLICMPass> {
                 Loop *LoopOfOperand = LI.getLoopFor(OperandInst->getParent());
 
                 if (LoopOfOperand && L == LoopOfOperand) {
-                  if (std::find(LIInstructions.begin(), LIInstructions.end(),
-                                OperandInst) != LIInstructions.end()) {
+                  if (llvm::is_contained(LIInstructions, OperandInst)) {
                     // operando definito dentro al loop ma la definizione è L.I.
                   } else {
                     loopInvariantArguments = false;
