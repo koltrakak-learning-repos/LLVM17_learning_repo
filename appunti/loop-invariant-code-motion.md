@@ -21,7 +21,11 @@ Se sono in SSA le reaching definitions sono già pronte
 - l'istruzione (già marcata come loop-invariant) si trova in un blocco che domina tutte le uscite
     - l'avrei eseguita comunque anche senza spostarla fuori dal loop
 - non ci sono altre definizioni della variabile nel loop
+    - dopo l'hoisting una definizione intera potrebbe sovrascrivere la definizione hoistata
 - l'istruzione (la definizione) domina tutti gli usi o non ci sono altre reaching definitions
+    - non cambio il dataflow con l'hoisting
+    - se la definizione dominava già tutti gli usi, spostarla nel preheader preserva la dominanza
+    - non avere altre reaching definitions non è la stessa cosa?
 
 **NB**: le ultime due condizioni in SSA sono già soddisfatte dato che ho una sola definizione per ogni variabile
 
