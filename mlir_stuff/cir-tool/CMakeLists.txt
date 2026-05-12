@@ -78,10 +78,6 @@ else()
   list(APPEND CMAKE_MODULE_PATH "${LLVM_MAIN_SRC_DIR}/cmake/modules")
 endif()
 
-if(MLIR_ENABLE_BINDINGS_PYTHON)
-  include(MLIRDetectPythonEnv)
-  mlir_configure_python_dev_packages()
-endif()
 
 
 ### SETTIAMO DOVE CERCARE HEADER E LIBRERIE ###
@@ -119,22 +115,7 @@ add_definitions(${LLVM_DEFINITIONS})
 add_subdirectory(include)
 add_subdirectory(lib)
 
-if(MLIR_ENABLE_BINDINGS_PYTHON)
-  message(STATUS "Enabling Python API")
-  include(MLIRDetectPythonEnv)
-  mlir_configure_python_dev_packages()
-  # Note: for EXTERNAL_PROJECT_BUILD this must be set from the command line.
-  if(NOT MLIR_PYTHON_PACKAGE_PREFIX)
-    set(MLIR_PYTHON_PACKAGE_PREFIX "mlir_standalone" CACHE STRING "" FORCE)
-  endif()
-  if(NOT MLIR_BINDINGS_PYTHON_NB_DOMAIN)
-    set(MLIR_BINDINGS_PYTHON_NB_DOMAIN "mlir_standalone" CACHE STRING "" FORCE)
-  endif()
-  if(NOT MLIR_BINDINGS_PYTHON_INSTALL_PREFIX)
-    set(MLIR_BINDINGS_PYTHON_INSTALL_PREFIX "python_packages/standalone/${MLIR_PYTHON_PACKAGE_PREFIX}" CACHE STRING "" FORCE)
-  endif()
-  add_subdirectory(python)
-endif()
+
 
 # variabile configurabile per includere i test o meno
 option(INCLUDE_TESTS "Enable tests" ON)
