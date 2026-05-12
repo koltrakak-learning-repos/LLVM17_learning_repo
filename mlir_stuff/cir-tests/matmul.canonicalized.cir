@@ -1,0 +1,219 @@
+!s32i = !cir.int<s, 32>
+!s8i = !cir.int<s, 8>
+module @"/home/kevin/Git_learning_repos/mlir-tutor/cir-tests/matmul.cpp" attributes {cir.lang = #cir.lang<cxx>, cir.module_asm = [], cir.triple = "x86_64-unknown-linux-gnu", dlti.dl_spec = #dlti.dl_spec<!llvm.ptr<270> = dense<32> : vector<4xi64>, !llvm.ptr<271> = dense<32> : vector<4xi64>, !llvm.ptr<272> = dense<64> : vector<4xi64>, i64 = dense<64> : vector<2xi64>, i128 = dense<128> : vector<2xi64>, f80 = dense<128> : vector<2xi64>, !llvm.ptr = dense<64> : vector<4xi64>, i1 = dense<8> : vector<2xi64>, i8 = dense<8> : vector<2xi64>, i16 = dense<16> : vector<2xi64>, i32 = dense<32> : vector<2xi64>, f16 = dense<16> : vector<2xi64>, f64 = dense<64> : vector<2xi64>, f128 = dense<128> : vector<2xi64>, "dlti.endianness" = "little", "dlti.mangling_mode" = "e", "dlti.legal_int_widths" = array<i32: 8, 16, 32, 64>, "dlti.stack_alignment" = 128 : i64>} {
+  cir.global "private" constant cir_private dso_local @".str" = #cir.const_array<"%d \00" : !cir.array<!s8i x 4>> : !cir.array<!s8i x 4> {alignment = 1 : i64}
+  cir.func no_inline dso_local @_Z6matmulPKiS0_Piiiii(%arg0: !cir.ptr<!s32i>, %arg1: !cir.ptr<!s32i>, %arg2: !cir.ptr<!s32i>, %arg3: !s32i, %arg4: !s32i, %arg5: !s32i, %arg6: !s32i) -> !cir.ptr<!s32i> {
+    %0 = cir.const #cir.int<0> : !s32i
+    %1 = cir.const #cir.ptr<null> : !cir.ptr<!s32i>
+    %2 = cir.alloca !cir.ptr<!s32i>, !cir.ptr<!cir.ptr<!s32i>>, ["a", init] {alignment = 8 : i64}
+    %3 = cir.alloca !cir.ptr<!s32i>, !cir.ptr<!cir.ptr<!s32i>>, ["b", init] {alignment = 8 : i64}
+    %4 = cir.alloca !cir.ptr<!s32i>, !cir.ptr<!cir.ptr<!s32i>>, ["c", init] {alignment = 8 : i64}
+    %5 = cir.alloca !s32i, !cir.ptr<!s32i>, ["rows_a", init] {alignment = 4 : i64}
+    %6 = cir.alloca !s32i, !cir.ptr<!s32i>, ["cols_a", init] {alignment = 4 : i64}
+    %7 = cir.alloca !s32i, !cir.ptr<!s32i>, ["rows_b", init] {alignment = 4 : i64}
+    %8 = cir.alloca !s32i, !cir.ptr<!s32i>, ["cols_b", init] {alignment = 4 : i64}
+    %9 = cir.alloca !cir.ptr<!s32i>, !cir.ptr<!cir.ptr<!s32i>>, ["__retval"] {alignment = 8 : i64}
+    cir.store %arg0, %2 : !cir.ptr<!s32i>, !cir.ptr<!cir.ptr<!s32i>>
+    cir.store %arg1, %3 : !cir.ptr<!s32i>, !cir.ptr<!cir.ptr<!s32i>>
+    cir.store %arg2, %4 : !cir.ptr<!s32i>, !cir.ptr<!cir.ptr<!s32i>>
+    cir.store %arg3, %5 : !s32i, !cir.ptr<!s32i>
+    cir.store %arg4, %6 : !s32i, !cir.ptr<!s32i>
+    cir.store %arg5, %7 : !s32i, !cir.ptr<!s32i>
+    cir.store %arg6, %8 : !s32i, !cir.ptr<!s32i>
+    cir.scope {
+      %12 = cir.load align(4) %6 : !cir.ptr<!s32i>, !s32i
+      %13 = cir.load align(4) %7 : !cir.ptr<!s32i>, !s32i
+      %14 = cir.cmp(ne, %12, %13) : !s32i, !cir.bool
+      cir.if %14 {
+        cir.store %1, %9 : !cir.ptr<!s32i>, !cir.ptr<!cir.ptr<!s32i>>
+        %15 = cir.load %9 : !cir.ptr<!cir.ptr<!s32i>>, !cir.ptr<!s32i>
+        cir.return %15 : !cir.ptr<!s32i>
+      }
+    }
+    cir.scope {
+      %12 = cir.alloca !s32i, !cir.ptr<!s32i>, ["i", init] {alignment = 4 : i64}
+      cir.store align(4) %0, %12 : !s32i, !cir.ptr<!s32i>
+      cir.for : cond {
+        %13 = cir.load align(4) %12 : !cir.ptr<!s32i>, !s32i
+        %14 = cir.load align(4) %5 : !cir.ptr<!s32i>, !s32i
+        %15 = cir.cmp(lt, %13, %14) : !s32i, !cir.bool
+        cir.condition(%15)
+      } body {
+        cir.scope {
+          cir.scope {
+            %13 = cir.alloca !s32i, !cir.ptr<!s32i>, ["j", init] {alignment = 4 : i64}
+            cir.store align(4) %0, %13 : !s32i, !cir.ptr<!s32i>
+            cir.for : cond {
+              %14 = cir.load align(4) %13 : !cir.ptr<!s32i>, !s32i
+              %15 = cir.load align(4) %8 : !cir.ptr<!s32i>, !s32i
+              %16 = cir.cmp(lt, %14, %15) : !s32i, !cir.bool
+              cir.condition(%16)
+            } body {
+              cir.scope {
+                %14 = cir.load align(4) %12 : !cir.ptr<!s32i>, !s32i
+                %15 = cir.load align(4) %8 : !cir.ptr<!s32i>, !s32i
+                %16 = cir.binop(mul, %14, %15) nsw : !s32i
+                %17 = cir.load align(4) %13 : !cir.ptr<!s32i>, !s32i
+                %18 = cir.binop(add, %16, %17) nsw : !s32i
+                %19 = cir.load align(8) %4 : !cir.ptr<!cir.ptr<!s32i>>, !cir.ptr<!s32i>
+                %20 = cir.ptr_stride %19, %18 : (!cir.ptr<!s32i>, !s32i) -> !cir.ptr<!s32i>
+                cir.store align(4) %0, %20 : !s32i, !cir.ptr<!s32i>
+                cir.scope {
+                  %21 = cir.alloca !s32i, !cir.ptr<!s32i>, ["k", init] {alignment = 4 : i64}
+                  cir.store align(4) %0, %21 : !s32i, !cir.ptr<!s32i>
+                  cir.for : cond {
+                    %22 = cir.load align(4) %21 : !cir.ptr<!s32i>, !s32i
+                    %23 = cir.load align(4) %6 : !cir.ptr<!s32i>, !s32i
+                    %24 = cir.cmp(lt, %22, %23) : !s32i, !cir.bool
+                    cir.condition(%24)
+                  } body {
+                    cir.scope {
+                      %22 = cir.load align(4) %12 : !cir.ptr<!s32i>, !s32i
+                      %23 = cir.load align(4) %6 : !cir.ptr<!s32i>, !s32i
+                      %24 = cir.binop(mul, %22, %23) nsw : !s32i
+                      %25 = cir.load align(4) %21 : !cir.ptr<!s32i>, !s32i
+                      %26 = cir.binop(add, %24, %25) nsw : !s32i
+                      %27 = cir.load align(8) %2 : !cir.ptr<!cir.ptr<!s32i>>, !cir.ptr<!s32i>
+                      %28 = cir.ptr_stride %27, %26 : (!cir.ptr<!s32i>, !s32i) -> !cir.ptr<!s32i>
+                      %29 = cir.load align(4) %28 : !cir.ptr<!s32i>, !s32i
+                      %30 = cir.load align(4) %21 : !cir.ptr<!s32i>, !s32i
+                      %31 = cir.load align(4) %8 : !cir.ptr<!s32i>, !s32i
+                      %32 = cir.binop(mul, %30, %31) nsw : !s32i
+                      %33 = cir.load align(4) %13 : !cir.ptr<!s32i>, !s32i
+                      %34 = cir.binop(add, %32, %33) nsw : !s32i
+                      %35 = cir.load align(8) %3 : !cir.ptr<!cir.ptr<!s32i>>, !cir.ptr<!s32i>
+                      %36 = cir.ptr_stride %35, %34 : (!cir.ptr<!s32i>, !s32i) -> !cir.ptr<!s32i>
+                      %37 = cir.load align(4) %36 : !cir.ptr<!s32i>, !s32i
+                      %38 = cir.binop(mul, %29, %37) nsw : !s32i
+                      %39 = cir.load align(4) %12 : !cir.ptr<!s32i>, !s32i
+                      %40 = cir.load align(4) %8 : !cir.ptr<!s32i>, !s32i
+                      %41 = cir.binop(mul, %39, %40) nsw : !s32i
+                      %42 = cir.load align(4) %13 : !cir.ptr<!s32i>, !s32i
+                      %43 = cir.binop(add, %41, %42) nsw : !s32i
+                      %44 = cir.load align(8) %4 : !cir.ptr<!cir.ptr<!s32i>>, !cir.ptr<!s32i>
+                      %45 = cir.ptr_stride %44, %43 : (!cir.ptr<!s32i>, !s32i) -> !cir.ptr<!s32i>
+                      %46 = cir.load align(4) %45 : !cir.ptr<!s32i>, !s32i
+                      %47 = cir.binop(add, %46, %38) nsw : !s32i
+                      cir.store align(4) %47, %45 : !s32i, !cir.ptr<!s32i>
+                    }
+                    cir.yield
+                  } step {
+                    %22 = cir.load align(4) %21 : !cir.ptr<!s32i>, !s32i
+                    %23 = cir.unary(inc, %22) nsw : !s32i, !s32i
+                    cir.store align(4) %23, %21 : !s32i, !cir.ptr<!s32i>
+                    cir.yield
+                  }
+                }
+              }
+              cir.yield
+            } step {
+              %14 = cir.load align(4) %13 : !cir.ptr<!s32i>, !s32i
+              %15 = cir.unary(inc, %14) nsw : !s32i, !s32i
+              cir.store align(4) %15, %13 : !s32i, !cir.ptr<!s32i>
+              cir.yield
+            }
+          }
+        }
+        cir.yield
+      } step {
+        %13 = cir.load align(4) %12 : !cir.ptr<!s32i>, !s32i
+        %14 = cir.unary(inc, %13) nsw : !s32i, !s32i
+        cir.store align(4) %14, %12 : !s32i, !cir.ptr<!s32i>
+        cir.yield
+      }
+    }
+    %10 = cir.load align(8) %4 : !cir.ptr<!cir.ptr<!s32i>>, !cir.ptr<!s32i>
+    cir.store %10, %9 : !cir.ptr<!s32i>, !cir.ptr<!cir.ptr<!s32i>>
+    %11 = cir.load %9 : !cir.ptr<!cir.ptr<!s32i>>, !cir.ptr<!s32i>
+    cir.return %11 : !cir.ptr<!s32i>
+  }
+  cir.func private @printf(!cir.ptr<!s8i>, ...) -> !s32i
+  cir.func no_inline dso_local @_Z12print_matrixPiii(%arg0: !cir.ptr<!s32i>, %arg1: !s32i, %arg2: !s32i) {
+    %0 = cir.const #cir.int<0> : !s32i
+    %1 = cir.alloca !cir.ptr<!s32i>, !cir.ptr<!cir.ptr<!s32i>>, ["m", init] {alignment = 8 : i64}
+    %2 = cir.alloca !s32i, !cir.ptr<!s32i>, ["rows", init] {alignment = 4 : i64}
+    %3 = cir.alloca !s32i, !cir.ptr<!s32i>, ["cols", init] {alignment = 4 : i64}
+    cir.store %arg0, %1 : !cir.ptr<!s32i>, !cir.ptr<!cir.ptr<!s32i>>
+    cir.store %arg1, %2 : !s32i, !cir.ptr<!s32i>
+    cir.store %arg2, %3 : !s32i, !cir.ptr<!s32i>
+    cir.scope {
+      %4 = cir.alloca !s32i, !cir.ptr<!s32i>, ["i", init] {alignment = 4 : i64}
+      cir.store align(4) %0, %4 : !s32i, !cir.ptr<!s32i>
+      cir.for : cond {
+        %5 = cir.load align(4) %4 : !cir.ptr<!s32i>, !s32i
+        %6 = cir.load align(4) %2 : !cir.ptr<!s32i>, !s32i
+        %7 = cir.cmp(lt, %5, %6) : !s32i, !cir.bool
+        cir.condition(%7)
+      } body {
+        cir.scope {
+          cir.scope {
+            %5 = cir.alloca !s32i, !cir.ptr<!s32i>, ["j", init] {alignment = 4 : i64}
+            cir.store align(4) %0, %5 : !s32i, !cir.ptr<!s32i>
+            cir.for : cond {
+              %6 = cir.load align(4) %5 : !cir.ptr<!s32i>, !s32i
+              %7 = cir.load align(4) %3 : !cir.ptr<!s32i>, !s32i
+              %8 = cir.cmp(lt, %6, %7) : !s32i, !cir.bool
+              cir.condition(%8)
+            } body {
+              cir.scope {
+                %6 = cir.get_global @".str" : !cir.ptr<!cir.array<!s8i x 4>>
+                %7 = cir.cast array_to_ptrdecay %6 : !cir.ptr<!cir.array<!s8i x 4>> -> !cir.ptr<!s8i>
+                %8 = cir.load align(4) %4 : !cir.ptr<!s32i>, !s32i
+                %9 = cir.load align(4) %3 : !cir.ptr<!s32i>, !s32i
+                %10 = cir.binop(mul, %8, %9) nsw : !s32i
+                %11 = cir.load align(4) %5 : !cir.ptr<!s32i>, !s32i
+                %12 = cir.binop(add, %10, %11) nsw : !s32i
+                %13 = cir.load align(8) %1 : !cir.ptr<!cir.ptr<!s32i>>, !cir.ptr<!s32i>
+                %14 = cir.ptr_stride %13, %12 : (!cir.ptr<!s32i>, !s32i) -> !cir.ptr<!s32i>
+                %15 = cir.load align(4) %14 : !cir.ptr<!s32i>, !s32i
+                %16 = cir.call @printf(%7, %15) : (!cir.ptr<!s8i>, !s32i) -> !s32i
+              }
+              cir.yield
+            } step {
+              %6 = cir.load align(4) %5 : !cir.ptr<!s32i>, !s32i
+              %7 = cir.unary(inc, %6) nsw : !s32i, !s32i
+              cir.store align(4) %7, %5 : !s32i, !cir.ptr<!s32i>
+              cir.yield
+            }
+          }
+        }
+        cir.yield
+      } step {
+        %5 = cir.load align(4) %4 : !cir.ptr<!s32i>, !s32i
+        %6 = cir.unary(inc, %5) nsw : !s32i, !s32i
+        cir.store align(4) %6, %4 : !s32i, !cir.ptr<!s32i>
+        cir.yield
+      }
+    }
+    cir.return
+  }
+  cir.func no_inline dso_local @main() -> !s32i {
+    %0 = cir.const #cir.int<0> : !s32i
+    %1 = cir.const #cir.int<3> : !s32i
+    %2 = cir.const #cir.int<2> : !s32i
+    %3 = cir.const #cir.zero : !cir.array<!cir.array<!s32i x 2> x 2>
+    %4 = cir.const #cir.const_array<[#cir.const_array<[#cir.int<1> : !s32i, #cir.int<2> : !s32i]> : !cir.array<!s32i x 2>, #cir.const_array<[#cir.int<3> : !s32i, #cir.int<4> : !s32i]> : !cir.array<!s32i x 2>, #cir.const_array<[#cir.int<5> : !s32i, #cir.int<6> : !s32i]> : !cir.array<!s32i x 2>]> : !cir.array<!cir.array<!s32i x 2> x 3>
+    %5 = cir.const #cir.const_array<[#cir.const_array<[#cir.int<1> : !s32i, #cir.int<2> : !s32i, #cir.int<3> : !s32i]> : !cir.array<!s32i x 3>, #cir.const_array<[#cir.int<4> : !s32i, #cir.int<5> : !s32i, #cir.int<6> : !s32i]> : !cir.array<!s32i x 3>]> : !cir.array<!cir.array<!s32i x 3> x 2>
+    %6 = cir.alloca !s32i, !cir.ptr<!s32i>, ["__retval"] {alignment = 4 : i64}
+    %7 = cir.alloca !cir.array<!cir.array<!s32i x 3> x 2>, !cir.ptr<!cir.array<!cir.array<!s32i x 3> x 2>>, ["a", init] {alignment = 16 : i64}
+    %8 = cir.alloca !cir.array<!cir.array<!s32i x 2> x 3>, !cir.ptr<!cir.array<!cir.array<!s32i x 2> x 3>>, ["b", init] {alignment = 16 : i64}
+    %9 = cir.alloca !cir.array<!cir.array<!s32i x 2> x 2>, !cir.ptr<!cir.array<!cir.array<!s32i x 2> x 2>>, ["c", init] {alignment = 16 : i64}
+    cir.store align(16) %5, %7 : !cir.array<!cir.array<!s32i x 3> x 2>, !cir.ptr<!cir.array<!cir.array<!s32i x 3> x 2>>
+    cir.store align(16) %4, %8 : !cir.array<!cir.array<!s32i x 2> x 3>, !cir.ptr<!cir.array<!cir.array<!s32i x 2> x 3>>
+    cir.store align(16) %3, %9 : !cir.array<!cir.array<!s32i x 2> x 2>, !cir.ptr<!cir.array<!cir.array<!s32i x 2> x 2>>
+    %10 = cir.cast array_to_ptrdecay %7 : !cir.ptr<!cir.array<!cir.array<!s32i x 3> x 2>> -> !cir.ptr<!cir.array<!s32i x 3>>
+    %11 = cir.cast bitcast %10 : !cir.ptr<!cir.array<!s32i x 3>> -> !cir.ptr<!s32i>
+    %12 = cir.cast array_to_ptrdecay %8 : !cir.ptr<!cir.array<!cir.array<!s32i x 2> x 3>> -> !cir.ptr<!cir.array<!s32i x 2>>
+    %13 = cir.cast bitcast %12 : !cir.ptr<!cir.array<!s32i x 2>> -> !cir.ptr<!s32i>
+    %14 = cir.cast array_to_ptrdecay %9 : !cir.ptr<!cir.array<!cir.array<!s32i x 2> x 2>> -> !cir.ptr<!cir.array<!s32i x 2>>
+    %15 = cir.cast bitcast %14 : !cir.ptr<!cir.array<!s32i x 2>> -> !cir.ptr<!s32i>
+    %16 = cir.call @_Z6matmulPKiS0_Piiiii(%11, %13, %15, %2, %1, %1, %2) : (!cir.ptr<!s32i>, !cir.ptr<!s32i>, !cir.ptr<!s32i>, !s32i, !s32i, !s32i, !s32i) -> !cir.ptr<!s32i>
+    %17 = cir.cast array_to_ptrdecay %9 : !cir.ptr<!cir.array<!cir.array<!s32i x 2> x 2>> -> !cir.ptr<!cir.array<!s32i x 2>>
+    %18 = cir.cast bitcast %17 : !cir.ptr<!cir.array<!s32i x 2>> -> !cir.ptr<!s32i>
+    cir.call @_Z12print_matrixPiii(%18, %2, %2) : (!cir.ptr<!s32i>, !s32i, !s32i) -> ()
+    cir.store %0, %6 : !s32i, !cir.ptr<!s32i>
+    %19 = cir.load %6 : !cir.ptr<!s32i>, !s32i
+    cir.return %19 : !s32i
+  }
+}
+
