@@ -124,14 +124,3 @@ if(INCLUDE_TESTS)
 endif()
 
 add_subdirectory(standalone-opt) # main
-
-# vedi se ti servono
-#
-# crea un plugin che può essere caricato con un altro tool mlir-opt esistente
-# (su windows non funzione e quindi non è abilitato)
-if(NOT WIN32)
-  add_subdirectory(standalone-plugin)
-endif()
-# altro main. Serve per tradurre il tuo dialetto in altri formati (es. esportare
-# verso LLVM IR o altri linguaggi).
-add_subdirectory(standalone-translate)

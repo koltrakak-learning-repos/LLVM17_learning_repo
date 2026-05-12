@@ -22,13 +22,9 @@ configure_lit_site_cfg(
 # dipendenze che devono esserci prima di lanciare i test
 set(STANDALONE_TEST_DEPENDS
     # FileCheck count not # questo non dovrebbe essere commentato ma ho una broken build di llvm che non voglio aggiustare
-        standalone-capi-test
         standalone-opt
-        standalone-translate
         )
-if(NOT WIN32)
-  list(APPEND STANDALONE_TEST_DEPENDS StandalonePlugin)
-endif()
+
 if(MLIR_ENABLE_BINDINGS_PYTHON)
   list(APPEND STANDALONE_TEST_DEPENDS StandalonePythonModules)
 endif()
@@ -43,5 +39,3 @@ add_lit_testsuite(check-standalone "Running the standalone regression tests"
 set_target_properties(check-standalone PROPERTIES FOLDER "Tests")
 # questa è altra pulizia che non mi interessa
 add_lit_testsuites(STANDALONE ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${STANDALONE_TEST_DEPENDS})
-# don't care dei test di CAPI
-add_subdirectory(CAPI)
