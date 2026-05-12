@@ -7,15 +7,20 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/DLTI/DLTI.h" // necessario per CIR
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h" // necessario per CIR
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/InitAllPasses.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 
-// dovrò prendere qualcosa da qua
-// #include "clang/CIR/Dialect/IR/CIRDialect.h"
+// ClangIR: dialetto e passi
+#include "clang/CIR/Dialect/IR/CIRDialect.h"
+#include "clang/CIR/Dialect/Passes.h"
+// se vuoi lowering verso MLIR/LLVM:
+// #include "clang/CIR/Passes.h"
 
 #include "Standalone/StandaloneDialect.h"
 #include "Standalone/StandalonePasses.h"
@@ -25,7 +30,14 @@ int main(int argc, char **argv) {
   mlir::standalone::registerPasses();
   // TODO: Register standalone passes here.
 
+  mlir::registerCIRPasses();
+
   mlir::DialectRegistry registry;
+
+  // i dialetti LLVM e DLTI sono necessari per CIR
+  registry
+      .insert<cir::CIRDialect, mlir::DLTIDialect, mlir::LLVM::LLVMDialect>();
+
   registry.insert<mlir::standalone::StandaloneDialect,
                   mlir::arith::ArithDialect, mlir::func::FuncDialect>();
   // Add the following to include *all* MLIR Core dialects, or selectively

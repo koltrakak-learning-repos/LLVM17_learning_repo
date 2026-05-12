@@ -1,8 +1,20 @@
+# NB: importo anche i target di CIR (MLIRCIR, ...).
+# Probabilmente dovrò spostare questo import quando scriverò i lowering verso
+# i dialetti standard di mlir
+find_package(Clang REQUIRED CONFIG)
+
 set(LIBS
     MLIRArithDialect
     MLIROptLib
     MLIRRegisterAllDialects
     MLIRRegisterAllPasses
+
+    # roba di CIR
+    MLIRDLTIDialect
+    MLIRLLVMDialect
+    # MLIRCIR
+    MLIRCIRTransforms
+
     # includiamo la libreria creata in lib/ con le sue dipendenze PUBLIC
     MLIRStandalone
   )
