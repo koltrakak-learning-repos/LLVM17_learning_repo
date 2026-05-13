@@ -15,6 +15,7 @@
 #include "mlir/InitAllPasses.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
+#include "mlir/Transforms/Passes.h"
 
 // ClangIR: dialetto e passi
 #include "clang/CIR/Dialect/IR/CIRDialect.h"
@@ -31,6 +32,13 @@ int main(int argc, char **argv) {
   // TODO: Register standalone passes here.
 
   mlir::registerCIRPasses();
+
+  mlir::PassPipelineRegistration<>(
+      "cir-pipeline", "Pipeline CIR: canonicalize + hoist-allocas",
+      [](mlir::OpPassManager &pm) {
+        pm.addPass(mlir::createCanonicalizerPass());
+        pm.addPass(mlir::createHoistAllocasPass());
+      });
 
   mlir::DialectRegistry registry;
 
