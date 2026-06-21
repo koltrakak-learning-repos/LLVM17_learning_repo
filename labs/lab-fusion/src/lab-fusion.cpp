@@ -191,6 +191,10 @@ struct MyFusionPass : PassInfoMixin<MyFusionPass> {
     for (auto [L1, L2] : CandidateFusibleLoops) {
       auto L1_IV = L1->getInductionVariable(SE);
       auto L2_IV = L2->getInductionVariable(SE);
+      if (!L1_IV || !L2_IV) {
+        errs() << "Induction variables non trovate.\n";
+        continue;
+      }
       L2_IV->replaceAllUsesWith(L1_IV);
 
       // per fondere i loop dobbiamo:
@@ -204,6 +208,7 @@ struct MyFusionPass : PassInfoMixin<MyFusionPass> {
       // 'SimplifyCFG' possa eliminare i basic block inutili
       BasicBlock *L1_Header = L1->getHeader();
       BasicBlock *L1_Latch = L1->getLoopLatch();
+      BasicBlock *L1_Exit = L1->getExitBlock();
       BasicBlock *L2_Header = L2->getHeader();
       BasicBlock *L2_Latch = L2->getLoopLatch();
       BasicBlock *L2_Exit = L2->getExitBlock();
@@ -212,47 +217,22 @@ struct MyFusionPass : PassInfoMixin<MyFusionPass> {
       BasicBlock *L1_Body = L1_Latch->getSinglePredecessor();
       BasicBlock *L2_Body = L2_Latch->getSinglePredecessor();
 
-      if (!L1_Body || !L2_Body || !L1_Latch || !L2_Latch || !L2_Exit) {
+      if (!L1_Body || !L2_Body || !L1_Latch || !L2_Latch || !L1_Exit ||
+          !L2_Exit) {
         errs() << "qualcosa è andato storto, probabilmente devo normalizzare "
                   "il CFG dei loop\n";
         continue;
       }
 
-      // 1. Far puntare il branch del corpo di L1 al corpo di L2
+      // punta il branch del corpo di L1 al corpo di L2
       Instruction *L1_BodyTerm = L1_Body->getTerminator();
-      L1_BodyTerm->setSuccessor(0, L2_Body);
-      // 2. Far puntare il branch del corpo di L2 al latch di L1
+      L1_BodyTerm->replaceSuccessorWith(L1_Latch, L2_Body);
+      // punta il branch del corpo di L2 al latch di L1
       Instruction *L2_BodyTerm = L2_Body->getTerminator();
-      L2_BodyTerm->setSuccessor(0, L1_Latch);
-
-      //   // 3. Far puntare l'exiting block di L1 (header) verso l'exit block
-      //   di L2
-      //   // L'Header di L1 ha un branch condizionale: un ramo va al Body,
-      //   l'altro
-      //   // andava all'Exit di L1.
-      //   Instruction *L1_Header_Term = L1_Header->getTerminator();
-      //   if (auto *BI = dyn_cast<BranchInst>(L1_Header_Term)) {
-      //     for (unsigned i = 0; i < BI->getNumSuccessors(); ++i) {
-      //       if (BI->getSuccessor(i) != L1_Body) { // È il ramo di uscita
-      //         BI->setSuccessor(
-      //             i, L2_Exit); // Mandalo direttamente all'uscita finale di
-      //             L2
-      //       }
-      //     }
-      //   }
-
-      //   // 4. CORTOCIRCUITO: far puntare l'header di L2 direttamente al suo
-      //   latch
-      //   // (saltando il corpo)
-      //   Instruction *L2_Header_Term = L2_Header->getTerminator();
-      //   if (auto *BI = dyn_cast<BranchInst>(L2_Header_Term)) {
-      //     for (unsigned i = 0; i < BI->getNumSuccessors(); ++i) {
-      //       if (BI->getSuccessor(i) == L2_Body) {
-      //         BI->setSuccessor(i, L2_Latch); // Salta il corpo, va dritto al
-      //         latch
-      //       }
-      //     }
-      //   }
+      L2_BodyTerm->replaceSuccessorWith(L2_Latch, L1_Latch);
+      // punta l'exiting block di L1 (header) verso l'exit block di L2
+      Instruction *L1_Header_Term = L1_Header->getTerminator();
+      L1_Header_Term->replaceSuccessorWith(L1_Exit, L2_Exit);
     }
 
     errs() << "\n----------------------------\n\n";
