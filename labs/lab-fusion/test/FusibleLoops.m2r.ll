@@ -9,45 +9,45 @@ define dso_local void @fusion_test() #0 {
   %2 = alloca [64 x i32], align 16
   call void @llvm.memset.p0.i64(ptr align 16 %1, i8 0, i64 256, i1 false)
   call void @llvm.memset.p0.i64(ptr align 16 %2, i8 0, i64 256, i1 false)
-  br label %3
+  br label %header1
 
-3:                                                ; preds = %8, %0
-  %.0 = phi i32 [ 0, %0 ], [ %9, %8 ]
+header1:                                                ; preds = %latch1, %0
+  %.0 = phi i32 [ 0, %0 ], [ %9, %latch1 ]
   %4 = icmp slt i32 %.0, 64
-  br i1 %4, label %5, label %10
+  br i1 %4, label %body1, label %10
 
-5:                                                ; preds = %3
+body1:                                                ; preds = %header1
   %6 = sext i32 %.0 to i64
   %7 = getelementptr inbounds [64 x i32], ptr %1, i64 0, i64 %6
   store i32 %.0, ptr %7, align 4
-  br label %8
+  br label %latch1
 
-8:                                                ; preds = %5
+latch1:                                                ; preds = %body1
   %9 = add nsw i32 %.0, 1
-  br label %3, !llvm.loop !6
+  br label %header1, !llvm.loop !6
 
-10:                                               ; preds = %3
-  br label %11
+10:                                               ; preds = %header1
+  br label %header2
 
-11:                                               ; preds = %19, %10
-  %.01 = phi i32 [ 0, %10 ], [ %20, %19 ]
+header2:                                               ; preds = %latch2, %10
+  %.01 = phi i32 [ 0, %10 ], [ %20, %latch2 ]
   %12 = icmp slt i32 %.01, 64
-  br i1 %12, label %13, label %21
+  br i1 %12, label %body2, label %21
 
-13:                                               ; preds = %11
+body2:                                               ; preds = %header2
   %14 = sext i32 %.01 to i64
   %15 = getelementptr inbounds [64 x i32], ptr %1, i64 0, i64 %14
   %16 = load i32, ptr %15, align 4
   %17 = sext i32 %.01 to i64
   %18 = getelementptr inbounds [64 x i32], ptr %2, i64 0, i64 %17
   store i32 %16, ptr %18, align 4
-  br label %19
+  br label %latch2
 
-19:                                               ; preds = %13
+latch2:                                               ; preds = %body2
   %20 = add nsw i32 %.01, 1
-  br label %11, !llvm.loop !8
+  br label %header2, !llvm.loop !8
 
-21:                                               ; preds = %11
+21:                                               ; preds = %header2
   ret void
 }
 

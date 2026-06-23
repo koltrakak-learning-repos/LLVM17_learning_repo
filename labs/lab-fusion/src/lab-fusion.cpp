@@ -189,23 +189,6 @@ struct MyFusionPass : PassInfoMixin<MyFusionPass> {
     // - Modificare il CFG perché il body del loop 2 sia agganciato a seguito
     // del body del loop 1 nel loop 1
     for (auto [L1, L2] : CandidateFusibleLoops) {
-      auto L1_IV = L1->getInductionVariable(SE);
-      auto L2_IV = L2->getInductionVariable(SE);
-      if (!L1_IV || !L2_IV) {
-        errs() << "Induction variables non trovate.\n";
-        continue;
-      }
-      L2_IV->replaceAllUsesWith(L1_IV);
-
-      // per fondere i loop dobbiamo:
-      // - far puntare il branch del corpo (predecessore del latch) di L1, al
-      // corpo di L2
-      // - far puntare il body di L2 al latch di L1
-      // - far puntare l'exiting block di L1 (header) verso l'exit block di L2
-      //
-      // Inoltre, facciamo puntare l'header di L2 direttamente al suo latch
-      // (saltando il suo corpo) in maniera tale che un successivo passo di
-      // 'SimplifyCFG' possa eliminare i basic block inutili
       BasicBlock *L1_Header = L1->getHeader();
       BasicBlock *L1_Latch = L1->getLoopLatch();
       BasicBlock *L1_Exit = L1->getExitBlock();
@@ -216,7 +199,6 @@ struct MyFusionPass : PassInfoMixin<MyFusionPass> {
       // latch in quanto contiene la branch che voglio modificare
       BasicBlock *L1_Body = L1_Latch->getSinglePredecessor();
       BasicBlock *L2_Body = L2_Latch->getSinglePredecessor();
-
       if (!L1_Body || !L2_Body || !L1_Latch || !L2_Latch || !L1_Exit ||
           !L2_Exit) {
         errs() << "qualcosa è andato storto, probabilmente devo normalizzare "
@@ -224,13 +206,39 @@ struct MyFusionPass : PassInfoMixin<MyFusionPass> {
         continue;
       }
 
-      // punta il branch del corpo di L1 al corpo di L2
+      // Recuperiamo a mano le induction variables dei loop. Quest'ultime sono i
+      // phi-nodes i quali hanno il loop latch come uno tra gli incoming blocks
+      // (questo L1->getInductionVariable(SE) funziona solo per loop rotated D:)
+      PHINode *L1_IV = nullptr;
+      for (auto &PHI : L1_Header->phis()) {
+        if (PHI.getBasicBlockIndex(L1_Latch) != -1) {
+          L1_IV = &PHI;
+          break;
+        }
+      }
+      PHINode *L2_IV = nullptr;
+      for (auto &PHI : L2_Header->phis()) {
+        // An induction variable will have an incoming value from the loop latch
+        if (PHI.getBasicBlockIndex(L2_Latch) != -1) {
+          L2_IV = &PHI;
+          break;
+        }
+      }
+      if (!L1_IV || !L2_IV) {
+        errs() << "Induction variables non trovate.\n";
+        continue;
+      }
+      L2_IV->replaceAllUsesWith(L1_IV);
+
+      // per fondere i loop dobbiamo:
+      // - far puntare il branch del corpo (predecessore del latch) di L1, al
+      // corpo di L2
       Instruction *L1_BodyTerm = L1_Body->getTerminator();
       L1_BodyTerm->replaceSuccessorWith(L1_Latch, L2_Body);
-      // punta il branch del corpo di L2 al latch di L1
+      // - far puntare il body di L2 al latch di L1
       Instruction *L2_BodyTerm = L2_Body->getTerminator();
       L2_BodyTerm->replaceSuccessorWith(L2_Latch, L1_Latch);
-      // punta l'exiting block di L1 (header) verso l'exit block di L2
+      // - far puntare l'exiting block di L1 (header) verso l'exit block di L2
       Instruction *L1_Header_Term = L1_Header->getTerminator();
       L1_Header_Term->replaceSuccessorWith(L1_Exit, L2_Exit);
     }
